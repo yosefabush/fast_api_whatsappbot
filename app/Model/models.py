@@ -186,6 +186,12 @@ class ConversationSession(Base):
                     chosen_group = "מחשבים"
                 # {a.name: a.id for a in chises_dict}
                 self.set_convertsion_step(step, db_key_value[chosen_group])
+            elif step == 5:
+                if response == "1":
+                    # user_id is phone number in conversation
+                    self.set_convertsion_step(step, self.user_id)
+                else:
+                    self.set_convertsion_step(step, response)
             else:
                 self.set_convertsion_step(step, response)
             print(f"{self.get_converstion_step(str(step))}")

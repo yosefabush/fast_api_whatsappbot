@@ -174,14 +174,14 @@ def process_bot_response(db, user_msg: str) -> str:
                 db.add(new_issue)
                 db.commit()
                 summary = json.loads(session.convers_step_resp)
-                data = {"technicianName": f"{summary['1']}", "kria": f"{summary['6']}", "clientCode": f"{18047}",
-                        "id": f"{448}", "password": f"{summary['2']}"}
-                if moses_api.create_issue(new_issue):
+                data = {"technicianName": f"{summary['5']}", "kria": f"{summary['6']}", "clientCode": f"{18047}"}
+                if moses_api.create_kria(data):
                     print(f"Issue successfully created! {data}")
                     new_issue.set_issue_status(db, True)
+                else:
+                    print(f"Failed to create Kria")
                 print("Conversation ends!")
                 session.set_status(db, False)
-                # print(session.get_all_responses())
                 return "Conversation ends!"
             else:
                 return conversation_steps[current_conversation_step]

@@ -3,9 +3,14 @@ import requests
 import xml.etree.ElementTree as ET
 
 END_POINT = "https://026430010.co.il/MosesTechWebService/Service1.asmx"
+PERFIX_USER = 448
+PERFIX_PASSWORD = 456789
 
 
-def create_issue(data):
+def create_kria(data):
+    # "id": f"{448}", "password": f"{summary['2']}"
+    data["id"] = PERFIX_USER
+    data["password"] = PERFIX_PASSWORD
     return True
     url = END_POINT + f"/InsertNewCall"
     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
@@ -16,7 +21,8 @@ def create_issue(data):
 
 
 def get_product_by_user(user_name, password):
-    res = {'table': [{'NumComp': '200401', 'ProductSherotName': 'מחשב - ELISHA-PC'}, {'NumComp': '501384', 'ProductSherotName': 'מחשב - אלישע'}]}
+    res = {'table': [{'NumComp': '200401', 'ProductSherotName': 'מחשב - ELISHA-PC'},
+                     {'NumComp': '501384', 'ProductSherotName': 'מחשב - אלישע'}]}
     return list(dict.fromkeys([name["ProductSherotName"].split("-")[0].strip() for name in res["table"]]))
     new_url = END_POINT + f"/AllDataAndCLientId?name={user_name}&password&{password}"
     data = requests.get(new_url, verify=False)
@@ -37,7 +43,8 @@ def get_product_by_user(user_name, password):
 
 
 def get_product_number_by_user(user_name, password):
-    res = {'table': [{'NumComp': '200401', 'ProductSherotName': 'מחשב - ELISHA-PC'}, {'NumComp': '501384', 'ProductSherotName': 'מחשב - אלישע'}]}
+    res = {'table': [{'NumComp': '200401', 'ProductSherotName': 'מחשב - ELISHA-PC'},
+                     {'NumComp': '501384', 'ProductSherotName': 'מחשב - אלישע'}]}
     return list(dict.fromkeys([name["NumComp"].split("-")[0].strip() for name in res["table"]]))
     new_url = END_POINT + f"/AllDataAndCLientId?name={user_name}&password&{password}"
     data = requests.get(new_url, verify=False)
@@ -58,4 +65,3 @@ def get_product_number_by_user(user_name, password):
 # Todo: #
 #  1) add ProductServiceId to Insert new
 #  2) add new end point to get all necessary data (client_id)
-
