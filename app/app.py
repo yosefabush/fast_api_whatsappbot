@@ -10,7 +10,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response
 
 requests.packages.urllib3.disable_warnings()
 
-PORT = os.getenv("PORT", default=5000)
+PORT = os.getenv("PORT", default=80)
 TOKEN = os.getenv('TOKEN', default=None)
 VERIFY_TOKEN = os.getenv("VERIFY_TOKEN", default=None)
 PHONE_NUMBER_ID_PROVIDER = os.getenv("NUMBER_ID_PROVIDER", default="104091002619024")
@@ -98,27 +98,41 @@ async def get_users(db=Depends(get_db)):
 
 
 @app.post("/webhook")
+@app.get("/webhook")
 async def handle_message(request: Request, db: Session = Depends(get_db)):
     try:
-        if after_working_hourse():
-            return """שלום, השירות פעיל בימים א'-ה' בשעות 08:00- 17:30. 
-ניתן לפתוח קריאה באתר דרך הקישור הבא 
- 026430010.co.il
-ונחזור אליכם בשעות הפעילות
-
-בברכה,
-מוזס מחשבים.""", 200
-        global sender
-        payload_as_json = await request.json()
-        payload_as_json = payload_as_json['entry'][0]['changes'][0]['value']['messages'][0]
-        sender = payload_as_json["from"]
-        text = payload_as_json['text']['body']
-        message = process_bot_response(db, text)
-        return message, 200
+        message = None
+        if request.method == "GET":
+            print("Inside receive message with verify token")
+            req_data = dict(request.query_params)
+            mode = req_data["hub.mode"]
+            challenge = req_data["hub.challenge"]
+            received_token = req_data["hub.verify_token"]
+            if mode and received_token:
+                if mode == "subscribe" and received_token == VERIFY_TOKEN:
+                    return challenge, 200
+                else:
+                    return "", 403
+        else:
+            if after_working_hourse():
+                return """שלום, השירות פעיל בימים א'-ה' בשעות 08:00- 17:30. 
+    ניתן לפתוח קריאה באתר דרך הקישור הבא 
+     026430010.co.il
+    ונחזור אליכם בשעות הפעילות
+    
+    בברכה,
+    מוזס מחשבים.""", 200
+            global sender
+            payload_as_json = await request.json()
+            payload_as_json = payload_as_json['entry'][0]['changes'][0]['value']['messages'][0]
+            sender = payload_as_json["from"]
+            text = payload_as_json['text']['body']
+            message = process_bot_response(db, text)
+            return message, 200
     except JSONDecodeError:
         payload_as_json = None
         message = "Received data is not a valid JSON"
-    return {"message": message, "received_data_as_json": payload_as_json}
+    return {"message": message, "received_data_as_json": payload_as_json},200
 
 
 def process_bot_response(db, user_msg: str) -> str:
@@ -257,4 +271,4 @@ if __name__ == "__main__":
     print("From main")
     # uvicorn.run(app, host="0.0.0.0", log_level="debug")
     # uvicorn.run(app, host="0.0.0.0")
-    uvicorn.run(app, host="0.0.0.0", port=int(80))
+    uvicorn.run(app, host="0.0.0.0", port=int(PORT))
