@@ -102,17 +102,22 @@ async def get_users(db=Depends(get_db)):
 async def handle_message(request: Request, db: Session = Depends(get_db)):
     try:
         message = None
+        payload_as_json = None
         if request.method == "GET":
-            print("Inside receive message with verify token")
-            req_data = dict(request.query_params)
-            mode = req_data["hub.mode"]
-            challenge = req_data["hub.challenge"]
-            received_token = req_data["hub.verify_token"]
-            if mode and received_token:
-                if mode == "subscribe" and received_token == VERIFY_TOKEN:
-                    return challenge, 200
-                else:
-                    return "", 403
+            try:
+                print("Inside receive message with verify token")
+                req_data = dict(request.query_params)
+                mode = req_data["hub.mode"]
+                challenge = req_data["hub.challenge"]
+                received_token = req_data["hub.verify_token"]
+                if mode and received_token:
+                    if mode == "subscribe" and received_token == VERIFY_TOKEN:
+                        return challenge, 200
+                    else:
+                        return "", 403
+            except Exception as ex:
+                print(f"error {ex}")
+                return "", 403
         else:
             if after_working_hourse():
                 return """שלום, השירות פעיל בימים א'-ה' בשעות 08:00- 17:30. 
@@ -132,7 +137,7 @@ async def handle_message(request: Request, db: Session = Depends(get_db)):
     except JSONDecodeError:
         payload_as_json = None
         message = "Received data is not a valid JSON"
-    return {"message": message, "received_data_as_json": payload_as_json},200
+    return {"message": message, "received_data_as_json": payload_as_json}, 200
 
 
 def process_bot_response(db, user_msg: str) -> str:
