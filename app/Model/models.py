@@ -1,11 +1,9 @@
 import json
 import re
 
-import requests
 import datetime
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-import xml.etree.ElementTree as ET
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, TIMESTAMP
 

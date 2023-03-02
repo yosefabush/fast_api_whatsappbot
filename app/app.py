@@ -1,15 +1,12 @@
 import os
 import uvicorn
 import requests
-
-from Model import moses_api
 from Model.models import *
-from sqlalchemy.sql import text
 from json import JSONDecodeError
 from sqlalchemy.orm import Session
 from requests.structures import CaseInsensitiveDict
 from DatabaseConnection import SessionLocal, engine
-from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
 
 requests.packages.urllib3.disable_warnings()
 
@@ -254,5 +251,5 @@ def after_working_hourse():
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=int(PORT))
+    uvicorn.run(app, host="0.0.0.0")
     # uvicorn.run(app, host="127.0.0.1", port=int(PORT))

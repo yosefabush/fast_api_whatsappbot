@@ -1,23 +1,29 @@
-version: '3'
+version: '3.8'
 
 services:
   app:
     build: .
-    command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app:app --host 0.0.0.0
     ports:
       - "8000:8000"
-    depends_on:
-      - db
+#     depends_on:
+#       - db
 
-  db:
-    image: mysql:latest
-    environment:
-      MYSQL_DATABASE: moses
-      MYSQL_ROOT_PASSWORD: root
-    ports:
-      - "3307:3306"
-    volumes:
-      - db-data:/var/lib/mysql
+#   db:
+#     container_name: mysql-db
+#     image: mysql:latest
+#     restart: always
+#     environment:
+#       MYSQL_DATABASE: moses
+#       MYSQL_ROOT_PASSWORD: root
+#       MYSQL_USER: root
+#       MYSQL_PASSWORD: root
+#       MYSQL_HOST: db
+#       MYSQL_PORT: 3306
+#     ports:
+#       - "3307:3306"
+#     volumes:
+#       - db-data:/var/lib/mysql
 
-volumes:
-  db-data:
+# volumes:
+#   db-data:
