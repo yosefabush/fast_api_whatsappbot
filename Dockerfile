@@ -35,4 +35,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 EXPOSE 8000
 
 # Start the app with Uvicorn
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0"]
+# CMD ["uvicorn", "app:app", "--host", "0.0.0.0"]
