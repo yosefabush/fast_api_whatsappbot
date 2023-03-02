@@ -36,7 +36,7 @@ conversation = {
 conversation_steps = ConversationSession.conversation_steps_in_class
 
 conversation_history = list()
-app = FastAPI(debug=True)
+app = FastAPI()
 
 
 @app.on_event("startup")
@@ -255,6 +255,6 @@ def after_working_hourse():
 
 if __name__ == "__main__":
     print("From main")
-    uvicorn.run("app:app", host="0.0.0.0", port=os.getenv("PORT", default=5000), log_level="info")
+    uvicorn.run(app, host="0.0.0.0", log_level="debug")
     # uvicorn.run(app, host="0.0.0.0")
     # uvicorn.run(app, host="127.0.0.1", port=int(PORT))

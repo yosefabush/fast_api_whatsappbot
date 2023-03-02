@@ -105,68 +105,79 @@ class ConversationSession(Base):
             raise Exception(f"Could not find user {self.id}, {self.user_id}")
         return sees.call_flow_location
 
-    def all_validation(self, db, step, answer):
-        match step:
-            case 1:
-                print(f"Check if user name '{answer}' valid")
-            case 2:
-                print(f"Check if password '{answer}' valid")
-                print(f"Search for user with user name '{self.get_converstion_step('1')}' and password '{answer}'")
-                # user_db = moses_api.get_product_by_user(self.get_converstion_step('1'), self.password)
-                user_db = db.query(User).filter(User.name == self.get_converstion_step('1'), User.password == answer).first()
-                if user_db is None:
-                    return False
-            case 3:
-                print(f"check if chosen '{answer}' valid")
-                # choises = {a.name: a.id for a in db.query(Items).all()}
-                choises = moses_api.get_product_by_user(self.user_id, self.password)
-                if answer not in choises:
-                    return False
-            case 4:
-                print(f"Check if product '{answer}' exist")
-                if answer not in moses_api.get_product_number_by_user(self.user_id, self.password):
-                    return False
-            case 5:
-                print(f"Check if phone number '{answer}' is valid")
-                if answer != "1":
-                    rule = re.compile(r'(^[+0-9]{1,3})*([0-9]{10,11}$)')
-                    if rule.search(answer):
-                        msg = "המספר שהוקש איננו תקין"
-                        print(msg)
-                        return False
-            case 6:
-                print(f"NO NEED TO VALIDATE ISSUE")
-        return True
+    # def all_validation(self, db, step, answer):
+    #     match step:
+    #         case 1:
+    #             print(f"Check if user name '{answer}' valid")
+    #         case 2:
+    #             print(f"Check if password '{answer}' valid")
+    #             print(f"Search for user with user name '{self.get_converstion_step('1')}' and password '{answer}'")
+    #             # user_db = moses_api.get_product_by_user(self.get_converstion_step('1'), self.password)
+    #             user_db = db.query(User).filter(User.name == self.get_converstion_step('1'), User.password == answer).first()
+    #             if user_db is None:
+    #                 return False
+    #         case 3:
+    #             print(f"check if chosen '{answer}' valid")
+    #             # choises = {a.name: a.id for a in db.query(Items).all()}
+    #             choises = moses_api.get_product_by_user(self.user_id, self.password)
+    #             if answer not in choises:
+    #                 return False
+    #         case 4:
+    #             print(f"Check if product '{answer}' exist")
+    #             if answer not in moses_api.get_product_number_by_user(self.user_id, self.password):
+    #                 return False
+    #         case 5:
+    #             print(f"Check if phone number '{answer}' is valid")
+    #             if answer != "1":
+    #                 rule = re.compile(r'(^[+0-9]{1,3})*([0-9]{10,11}$)')
+    #                 if rule.search(answer):
+    #                     msg = "המספר שהוקש איננו תקין"
+    #                     print(msg)
+    #                     return False
+    #         case 6:
+    #             print(f"NO NEED TO VALIDATE ISSUE")
+    #     return True
 
-    def validation_switch_step(self, case, answer):
+    def validation_switch_step(self, db, case, answer):
         if case == 1:
             print(f"Check if user name '{answer}' valid")
         elif case == 2:
             print(f"Check if password '{answer}' valid")
             print(f"Search for user with user name '{self.get_converstion_step('1')}' and password '{answer}'")
-            # Crud.get_user_by_user_and_password(answer, self.password)
-            # Session = get_db
-            # db_user = Crud.get_user_by_user_and_password(db, user=user, password="aaa")
-            # if db_user:
+            # user_db = moses_api.get_product_by_user(self.get_converstion_step('1'), self.password)
+            user_db = db.query(User).filter(User.name == self.get_converstion_step('1'),
+                                            User.password == answer).first()
+            if user_db is None:
+                return False
         elif case == 3:
             print(f"check if chosen '{answer}' valid")
-            if answer not in ['ב', 'א']:
+            # choises = {a.name: a.id for a in db.query(Items).all()}
+            choises = moses_api.get_product_by_user(self.user_id, self.password)
+            if answer not in choises:
                 return False
         elif case == 4:
             print(f"Check if product '{answer}' exist")
+            if answer not in moses_api.get_product_number_by_user(self.user_id, self.password):
+                return False
         elif case == 5:
             print(f"Check if phone number '{answer}' is valid")
+            if answer != "1":
+                rule = re.compile(r'(^[+0-9]{1,3})*([0-9]{10,11}$)')
+                if rule.search(answer):
+                    msg = "המספר שהוקש איננו תקין"
+                    print(msg)
+                    return False
         elif case == 6:
             print(f"NO NEED TO VALIDATE ISSUE")
-            self.issue_to_be_created = answer
         else:
             return False
         return True
 
     def validate_and_set_answer(self, db, step, response):
         step = int(step) - 1
-        # if self.validation_switch_step(step, response):
-        if self.all_validation(db, step, response):
+
+        # if self.all_validation(db, step, response):
+        if self.validation_switch_step(db, step, response):
             if step == 3:
                 db_key_value = {a.name: a.id for a in db.query(Items).all()}
                 # self.set_convertsion_step(step, chises_dict[response])
