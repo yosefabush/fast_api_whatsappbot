@@ -255,6 +255,6 @@ def after_working_hourse():
 
 if __name__ == "__main__":
     print("From main")
-    uvicorn.run(app, host="0.0.0.0", log_level="debug")
+    # uvicorn.run(app, host="0.0.0.0", log_level="debug")
     # uvicorn.run(app, host="0.0.0.0")
-    # uvicorn.run(app, host="127.0.0.1", port=int(PORT))
+    uvicorn.run(app, host="0.0.0.0", port=int(80))
