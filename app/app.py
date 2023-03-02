@@ -41,11 +41,13 @@ app = FastAPI(debug=True)
 
 @app.on_event("startup")
 def startup():
+    print("startup DB create_all")
     Base.metadata.create_all(bind=engine)
 
 
 @app.on_event("shutdown")
 def shutdown():
+    print("shutdown DB dispose")
     engine.dispose()
 
 
@@ -60,6 +62,7 @@ def get_db():
 
 @app.get("/")
 def root():
+    print("root router!")
     return {"Hello": "FastAPI"}
 
 
@@ -251,5 +254,6 @@ def after_working_hourse():
 
 
 if __name__ == "__main__":
+    print("From main")
     uvicorn.run(app, host="0.0.0.0")
     # uvicorn.run(app, host="127.0.0.1", port=int(PORT))
