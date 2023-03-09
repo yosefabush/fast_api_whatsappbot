@@ -74,7 +74,7 @@ def get_db():
 
 @app.get("/")
 def root():
-    print("root router!")
+    print("root router 1!")
     return {"Hello": "FastAPI"}
 
 
