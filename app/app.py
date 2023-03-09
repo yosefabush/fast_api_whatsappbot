@@ -152,6 +152,8 @@ async def handle_message_with_request_scheme(data: WebhookRequestData, db: Sessi
         return Response(content=message)
     except JSONDecodeError:
         message = "Received data is not a valid JSON"
+    except Exception as ex:
+        print(f"Exception: '{ex}'")
     return Response(content=message)
 
 
