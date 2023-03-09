@@ -27,16 +27,21 @@ headers = CaseInsensitiveDict()
 headers["Accept"] = "application/json"
 headers["Authorization"] = f"Bearer {TOKEN}"
 session_open = False
-
 conversation = {
     "Greeting": "ברוך הבא לבוט של מוזס!"
 }
+non_working_hours_msg = """שלום, השירות פעיל בימים א'-ה' בשעות 08:00- 17:30. 
+ניתן לפתוח קריאה באתר דרך הקישור הבא 
+ 026430010.co.il
+ונחזור אליכם בשעות הפעילות
 
+בברכה,
+מוזס מחשבים."""
 # Define a list of predefined conversation steps
 conversation_steps = ConversationSession.conversation_steps_in_class
 
 conversation_history = list()
-app = FastAPI()
+app = FastAPI(debug=True)
 
 
 @app.on_event("startup")
@@ -100,43 +105,24 @@ async def get_users(db=Depends(get_db)):
 @app.post("/webhook")
 async def handle_message(request: Request, db: Session = Depends(get_db)):
     try:
+        print("handle_message")
+        global sender
         message = None
         payload_as_json = None
-        if request.method == "GET":
-            try:
-                print("Inside receive message with verify token")
-                req_data = dict(request.query_params)
-                mode = req_data["hub.mode"]
-                challenge = req_data["hub.challenge"]
-                received_token = req_data["hub.verify_token"]
-                if mode and received_token:
-                    if mode == "subscribe" and received_token == VERIFY_TOKEN:
-                        return challenge, 200
-                    else:
-                        return "", 403
-            except Exception as ex:
-                print(f"error {ex}")
-                return "", 403
-        else:
-            if after_working_hours():
-                return """שלום, השירות פעיל בימים א'-ה' בשעות 08:00- 17:30. 
-    ניתן לפתוח קריאה באתר דרך הקישור הבא 
-     026430010.co.il
-    ונחזור אליכם בשעות הפעילות
-    
-    בברכה,
-    מוזס מחשבים.""", 200
-            global sender
-            payload_as_json = await request.json()
-            payload_as_json = payload_as_json['entry'][0]['changes'][0]['value']['messages'][0]
-            sender = payload_as_json["from"]
-            text = payload_as_json['text']['body']
-            message = process_bot_response(db, text)
-            return message, 200
+        payload_as_json = await request.json()
+        payload_as_json = payload_as_json['entry'][0]['changes'][0]['value']['messages'][0]
+        sender = payload_as_json["from"]
+        text = payload_as_json['text']['body']
+        if after_working_hours():
+            print("after_working_hours")
+            send_response_using_whatsapp_api(non_working_hours_msg)
+            return Response(content=non_working_hours_msg)
+            # return non_working_hours_msg, 200
+        message = process_bot_response(db, text)
+        return Response(content=message)
     except JSONDecodeError:
-        payload_as_json = None
         message = "Received data is not a valid JSON"
-    return {"message": message, "received_data_as_json": payload_as_json}, 200
+    return Response(content=message)
 
 
 @app.get("/webhook")
@@ -145,6 +131,7 @@ async def verify(request: Request):
     On webhook verification VERIFY_TOKEN has to match the token at the
     configuration and send back "hub.challenge" as success.
     """
+    print("verify token")
     if request.query_params.get("hub.mode") == "subscribe" and request.query_params.get("hub.challenge"):
         if not request.query_params.get("hub.verify_token") == os.environ["VERIFY_TOKEN"]:
             return Response(content="Verification token mismatch", status_code=403)
