@@ -98,7 +98,6 @@ async def get_users(db=Depends(get_db)):
 
 
 @app.post("/webhook")
-@app.get("/webhook")
 async def handle_message(request: Request, db: Session = Depends(get_db)):
     try:
         message = None
@@ -119,7 +118,7 @@ async def handle_message(request: Request, db: Session = Depends(get_db)):
                 print(f"error {ex}")
                 return "", 403
         else:
-            if after_working_hourse():
+            if after_working_hours():
                 return """שלום, השירות פעיל בימים א'-ה' בשעות 08:00- 17:30. 
     ניתן לפתוח קריאה באתר דרך הקישור הבא 
      026430010.co.il
@@ -138,6 +137,20 @@ async def handle_message(request: Request, db: Session = Depends(get_db)):
         payload_as_json = None
         message = "Received data is not a valid JSON"
     return {"message": message, "received_data_as_json": payload_as_json}, 200
+
+
+@app.get("/webhook")
+async def verify(request: Request):
+    """
+    On webhook verification VERIFY_TOKEN has to match the token at the
+    configuration and send back "hub.challenge" as success.
+    """
+    if request.query_params.get("hub.mode") == "subscribe" and request.query_params.get("hub.challenge"):
+        if not request.query_params.get("hub.verify_token") == os.environ["VERIFY_TOKEN"]:
+            return Response(content="Verification token mismatch", status_code=403)
+        return Response(content=request.query_params["hub.challenge"])
+
+    return Response(content="Required arguments haven't passed.", status_code=400)
 
 
 def process_bot_response(db, user_msg: str) -> str:
@@ -268,7 +281,7 @@ def check_if_session_exist(user_id):
     return None
 
 
-def after_working_hourse():
+def after_working_hours():
     return False
 
 
