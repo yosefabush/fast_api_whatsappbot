@@ -1,6 +1,7 @@
 import os
 import uvicorn
 import requests
+from typing import List
 from Model.models import *
 from json import JSONDecodeError
 from sqlalchemy.orm import Session
@@ -40,8 +41,14 @@ non_working_hours_msg = """שלום, השירות פעיל בימים א'-ה' ב
 # Define a list of predefined conversation steps
 conversation_steps = ConversationSession.conversation_steps_in_class
 
-conversation_history = list()
+# conversation_history = list()
 app = FastAPI(debug=True)
+
+
+# Request Models.
+class WebhookRequestData(BaseModel):
+    object: str = ""
+    entry: List = []
 
 
 @app.on_event("startup")
@@ -102,7 +109,7 @@ async def get_users(db=Depends(get_db)):
     return {"Results": result}
 
 
-@app.post("/webhook")
+@app.post("/webhook_old")
 async def handle_message(request: Request, db: Session = Depends(get_db)):
     try:
         print("handle_message")
@@ -119,6 +126,29 @@ async def handle_message(request: Request, db: Session = Depends(get_db)):
             return Response(content=non_working_hours_msg)
             # return non_working_hours_msg, 200
         message = process_bot_response(db, text)
+        return Response(content=message)
+    except JSONDecodeError:
+        message = "Received data is not a valid JSON"
+    return Response(content=message)
+
+
+@app.post("/webhook")
+async def handle_message_with_request_scheme(data: WebhookRequestData, db: Session = Depends(get_db)):
+    try:
+        print("handle_message_with_request_scheme")
+        global sender
+        message = "ok"
+        if data.object == "whatsapp_business_account":
+            for entry in data.entry:
+                messaging_events = [event for event in entry.get("changes", []) if
+                                    event.get("field", None) == "messages"]
+                print(f"total events: '{len(messaging_events)}'")
+                for event in messaging_events:
+                    text = event['value']['messages'][0]['text']['body']
+                    sender = event['value']['messages'][0]['from']
+                    message = process_bot_response(db, text)
+        else:
+            print(data.object)
         return Response(content=message)
     except JSONDecodeError:
         message = "Received data is not a valid JSON"
@@ -142,17 +172,18 @@ async def verify(request: Request):
 
 def process_bot_response(db, user_msg: str) -> str:
     log = ""
-    global conversation_history
-    # conversation_history = db.query(ConversationSession).all()
-    print("Loading active conversation...")
-    conversation_history = db.query(ConversationSession).filter(ConversationSession.session_active == True).all()
     if user_msg in ["אדמין"]:
-        for s in conversation_history:
-            if not s.session_active:
-                log += f"ID: {s.user_id} Sent message: {s.issue_to_be_created}\n"
+        created_issues_history = db.query(Issues).filter(Issues.issue_sent_status == True).all()
+        for issue in created_issues_history:
+            log += f"Conversation ID: {issue.conversation_id} Sent message: {issue.issue_data}\n"
         send_response_using_whatsapp_api(log)
         return log
-    session = check_if_session_exist(sender)
+    if user_msg in ["reset"]:
+        conversation_history = db.query(ConversationSession).filter(ConversationSession.session_active == True).all()
+        for session in conversation_history:
+            session.set_status(db, False)
+        return "All conversation were reset"
+    session = check_if_session_exist(db, sender)
     if session is None:
         print(f"Hi {sender} You are new!:")
         steps_message = ""
@@ -161,6 +192,7 @@ def process_bot_response(db, user_msg: str) -> str:
 
         send_response_using_whatsapp_api(conversation["Greeting"])
         print(f"{steps_message}")
+        # us = db.query(User.id).filter(User.phone == sender).first()
         session = ConversationSession(user_id=sender, db=db)
         db.add(session)
         db.commit()
@@ -180,7 +212,7 @@ def process_bot_response(db, user_msg: str) -> str:
                 send_response_using_whatsapp_api("שלום " + session.get_converstion_step("1") + "!")
             if current_conversation_step == "3":
                 # choices = ["ב", "א"]
-                choices = session.get_chossies(db)
+                choices = session.get_chooses(db)
                 send_response_using_whatsapp_api(f"{conversation_steps[current_conversation_step]}\n{choices}\n")
             else:
                 send_response_using_whatsapp_api(conversation_steps[current_conversation_step])
@@ -188,12 +220,13 @@ def process_bot_response(db, user_msg: str) -> str:
             next_step_conversation_after_increment = str(session.call_flow_location)
             # Check if conversation reach to last step
             if next_step_conversation_after_increment == str(len(conversation_steps) + 1):  # 7
-                new_issue = Issues(user_id=session.id, item_id=session.get_converstion_step("3"),
+                new_issue = Issues(conversation_id=session.id, item_id=session.get_converstion_step("3"),
                                    issue_data=session.get_converstion_step(str(int(current_conversation_step) - 1)))
                 db.add(new_issue)
                 db.commit()
                 summary = json.loads(session.convers_step_resp)
                 data = {"technicianName": f"{summary['5']}", "kria": f"{summary['6']}", "clientCode": f"{18047}"}
+                # data = {"technicianName": f"{summary['5']}", "kria": f"{new_issue.issue_data}", "clientCode": f"{18047}"}
                 if moses_api.create_kria(data):
                     print(f"Issue successfully created! {data}")
                     new_issue.set_issue_status(db, True)
@@ -210,7 +243,7 @@ def process_bot_response(db, user_msg: str) -> str:
             fixed_step = str(int(current_conversation_step) - 1)
             if fixed_step == "3":
                 # choices = ["ב", "א"]
-                choices = session.get_chossies(db)
+                choices = session.get_chooses(db)
                 return send_response_using_whatsapp_api(f"{conversation_steps[fixed_step]}\n{choices}\n")
             else:
                 return send_response_using_whatsapp_api(conversation_steps[fixed_step])
@@ -258,13 +291,24 @@ def send_response_using_whatsapp_api(message, phone_number=PHONE_NUMBER_ID_PROVI
         raise EX
 
 
-def check_if_session_exist(user_id):
-    print(f"Check check_if_session_exist '{user_id}'")
-    # search for active session with user_id
-    for session in conversation_history:
-        if session.user_id == user_id:
-            print("SESSION exist!")
-            return session
+def check_if_session_exist(db, user_id):
+    # print("Loading active conversation...")
+    # conversation_history = db.query(ConversationSession).filter(ConversationSession.session_active == True).all()
+    # print(f"Check check_if_session_exist '{user_id}'")
+    # # search for active session with user_id
+    # for session in conversation_history:
+    #     if session.user_id == user_id:
+    #         print("SESSION exist!")
+    #         return session
+    session = db.query(ConversationSession).filter(ConversationSession.user_id == user_id,
+                                                   ConversationSession.session_active == True).all()
+    if len(session) > 1:
+        print("more then one SESSION exist!")
+        print(f"There is more then one active call for {user_id}, returning last one")
+        return session[-1]
+    if len(session) == 1:
+        print("SESSION exist!")
+        return session[0]
     return None
 
 

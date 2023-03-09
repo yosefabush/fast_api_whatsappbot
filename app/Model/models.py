@@ -37,7 +37,7 @@ class Items(Base):
 class Issues(Base):
     __tablename__ = "issues"
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(String(255), unique=False, index=True)
+    conversation_id = Column(String(255), unique=False, index=True)
     item_id = Column(Integer, ForeignKey("items.id"))
     issue_data = Column(String(255), unique=False, index=True)
     issue_sent_status = Column(Boolean, default=False)
@@ -180,10 +180,13 @@ class ConversationSession(Base):
         if self.validation_switch_step(db, step, response):
             if step == 3:
                 db_key_value = {a.name: a.id for a in db.query(Items).all()}
-                # self.set_convertsion_step(step, chises_dict[response])
-                chosen_group = self.get_chossies(db)
+                chosen_group = self.get_chooses(db)
                 if "מחשב" in chosen_group:
                     chosen_group = "מחשבים"
+                else:
+                    print(f"Not valid response {response} for {self.conversation_steps_in_class[str(step)]}")
+                    result = f" ערך לא חוקי '{response}' "
+                    return False, result
                 # {a.name: a.id for a in chises_dict}
                 self.set_convertsion_step(step, db_key_value[chosen_group])
             elif step == 5:
@@ -208,10 +211,11 @@ class ConversationSession(Base):
         db.commit()
         # self.session_active = status
 
-    def get_chossies(self, db):
+    def get_chooses(self, db):
         # [a.name for a in db.query(Items.name).all()]
         # choices = {a.name: a.id for a in db.query(Items).all()} list(choices.keys())
         choices = moses_api.get_product_by_user(self.get_converstion_step('1'), self.password)
+        print(f"Allowed values: '{choices}'")
         return choices
 
     def get_all_responses(self):
