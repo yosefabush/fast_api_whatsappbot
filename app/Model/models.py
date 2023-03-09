@@ -39,7 +39,7 @@ class Issues(Base):
     id = Column(Integer, primary_key=True, index=True)
     conversation_id = Column(String(255), unique=False, index=True)
     item_id = Column(Integer, ForeignKey("items.id"))
-    issue_data = Column(String(255), unique=False, index=True)
+    issue_data = Column(String(255), unique=False)
     issue_sent_status = Column(Boolean, default=False)
 
     def set_issue_status(self, db, status):
@@ -69,7 +69,7 @@ class ConversationSession(Base):
     start_data = Column(TIMESTAMP(timezone=False), nullable=False, default=datetime.datetime.now())
     # start_data = Column('timestamp', TIMESTAMP(timezone=False), nullable=False, default=datetime.datetime.now())
     session_active = Column(Boolean, default=True)
-    convers_step_resp = Column(String(255), unique=False, index=True)
+    convers_step_resp = Column(String(1500), unique=False)
 
     def __init__(self, user_id, db: Session):
         self.user_id = user_id
