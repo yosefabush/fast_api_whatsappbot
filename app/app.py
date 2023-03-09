@@ -17,7 +17,7 @@ VERIFY_TOKEN = os.getenv("VERIFY_TOKEN", default=None)
 PHONE_NUMBER_ID_PROVIDER = os.getenv("NUMBER_ID_PROVIDER", default="104091002619024")
 FACEBOOK_API_URL = 'https://graph.facebook.com/v16.0'
 WHATS_API_URL = 'https://api.whatsapp.com/v3'
-TIMEOUT_FOR_OPEN_SESSION_MINUTES = 1
+TIME_PASS_FROM_LAST_SESSION = 2
 if None in [TOKEN, VERIFY_TOKEN]:
     raise Exception(f"Error on env var '{TOKEN, VERIFY_TOKEN}' ")
 # db = Database()
@@ -172,6 +172,19 @@ async def verify(request: Request):
     return Response(content="Required arguments haven't passed.", status_code=400)
 
 
+def check_for_timeout(db, sender):
+    session = db.query(ConversationSession).filter(ConversationSession.user_id == sender,
+                                                   ConversationSession.session_active == False).order_by(
+        ConversationSession.start_data.desc()).first()
+    if session is None:
+        return True
+    diff_time = datetime.datetime.now() - session.start_data
+    seconds_in_day = 24 * 60 * 60
+    minutes, second = divmod(diff_time.days * seconds_in_day + diff_time.seconds, 60)
+    if TIME_PASS_FROM_LAST_SESSION > minutes:
+        return False
+
+
 def process_bot_response(db, user_msg: str) -> str:
     log = ""
     if user_msg in ["אדמין"]:
@@ -180,13 +193,19 @@ def process_bot_response(db, user_msg: str) -> str:
             log += f"Conversation ID: {issue.conversation_id} Sent message: {issue.issue_data}\n"
         send_response_using_whatsapp_api(log)
         return log
-    if user_msg in ["reset"]:
+    if user_msg.lower() in ["reset"]:
         conversation_history = db.query(ConversationSession).filter(ConversationSession.session_active == True).all()
         for session in conversation_history:
             session.set_status(db, False)
+        print("All conversation were reset")
         return "All conversation were reset"
     session = check_if_session_exist(db, sender)
     if session is None:
+        if not check_for_timeout(db, sender):
+            print(f"Please wait '{TIME_PASS_FROM_LAST_SESSION}' min")
+            send_response_using_whatsapp_api(
+                f"""אנא המתן אנא המתן '{TIME_PASS_FROM_LAST_SESSION}' דקות לפני הפנייה הבאה""", sender)
+            return f"""אנא המתן אנא המתן '{TIME_PASS_FROM_LAST_SESSION}' דקות לפני הפנייה הבאה"""
         print(f"Hi {sender} You are new!:")
         steps_message = ""
         for key, value in conversation_steps.items():
