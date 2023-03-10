@@ -11,7 +11,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response
 
 requests.packages.urllib3.disable_warnings()
 
-PORT = os.getenv("PORT", default=80)
+PORT = os.getenv("PORT", default=443)
 TOKEN = os.getenv('TOKEN', default=None)
 VERIFY_TOKEN = os.getenv("VERIFY_TOKEN", default=None)
 PHONE_NUMBER_ID_PROVIDER = os.getenv("NUMBER_ID_PROVIDER", default="104091002619024")
@@ -183,6 +183,7 @@ def check_for_timeout(db, sender):
     minutes, second = divmod(diff_time.days * seconds_in_day + diff_time.seconds, 60)
     if TIME_PASS_FROM_LAST_SESSION > minutes:
         return False
+    return True
 
 
 def process_bot_response(db, user_msg: str) -> str:
@@ -339,11 +340,14 @@ def after_working_hours():
 
 if __name__ == "__main__":
     print("From main")
-    # uvicorn.run(app, host="0.0.0.0", log_level="debug")
-    # uvicorn.run(app, host="0.0.0.0")
-    uvicorn.run(app, host="0.0.0.0", port=int(PORT))
-    # uvicorn.run("app:app", port=80, host='0.0.0.0', reload = True)
-    # uvicorn.run("main:app", port=443, host='0.0.0.0',
-    #             ssl_keyfile="/etc/letsencrypt/live/my_domain/privkey.pem",
-    #             ssl_certfile="/etc/letsencrypt/live/my_domain/fullchain.pem")
-    # --ssl-keyfile /path/to/key.pem --ssl-certfile /path/to/cert.pem"
+    # uvicorn.run(app,
+    #             host="0.0.0.0",
+    #             port=int(PORT),
+    #             ssl_keyfile=r"C:\Certificate\key.pem",
+    #             ssl_certfile=r"C:\Certificate\cert.pem",
+    #             log_level="info")
+
+    uvicorn.run(app,
+                host="0.0.0.0",
+                port=int(PORT),
+                log_level="info")
