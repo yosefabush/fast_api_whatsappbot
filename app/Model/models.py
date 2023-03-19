@@ -107,49 +107,49 @@ class ConversationSession(Base):
             raise Exception(f"Could not find user {self.id}, {self.user_id}")
         return sees.call_flow_location
 
-    def all_validation(self, db, step, answer):
-        match step:
-            case 1:
-                print(f"Check if user name '{answer}' valid")
-            case 2:
-                print(f"Log in with password '{answer}'")
-                print(
-                    f"Search for user with user name '{self.get_conversation_step_json('1')}' and password '{answer}'")
-                # user_db = moses_api.get_product_by_user(self.get_converstion_step('1'), self.password)
-                user_db = db.query(User).filter(User.name == self.get_conversation_step_json('1'),
-                                                User.password == answer).first()
-                if user_db is None:
-                    print("user not found!")
-                    return False
-                print("User found!")
-                self.password = answer
-                db.commit()
-            case 3:
-                print(f"check if chosen '{answer}' valid")
-                # choises = {a.name: a.id for a in db.query(Items).all()}
-                choises = moses_api.get_product_by_user(self.user_id, self.password)
-                if answer not in choises:
-                    return False
-                res = db.query(Items.id).filter(Items.name == answer).first()
-                if len(res) == 0:
-                    print(f"Item not exist {answer}")
-                    return False
-            case 4:
-                print(f"Check if product '{answer}' exist")
-                if answer not in moses_api.get_product_number_by_user(self.user_id, self.password):
-                    return False
-            case 5:
-                print(f"Check if phone number '{answer}' is valid")
-                if answer != "1":
-                    # rule = re.compile(r'(^[+0-9]{1,3})*([0-9]{10,11}$)')
-                    rule = re.compile(r'(^\+?(972|0)(\-)?0?(([23489]{1}\d{7})|[5]{1}\d{8})$)')
-                    if not rule.search(answer):
-                        msg = "המספר שהוקש איננו תקין"
-                        print(msg)
-                        return False
-            case 6:
-                print(f"NO NEED TO VALIDATE ISSUE")
-        return True
+    # def all_validation(self, db, step, answer):
+    #     match step:
+    #         case 1:
+    #             print(f"Check if user name '{answer}' valid")
+    #         case 2:
+    #             print(f"Log in with password '{answer}'")
+    #             print(
+    #                 f"Search for user with user name '{self.get_conversation_step_json('1')}' and password '{answer}'")
+    #             # user_db = moses_api.get_product_by_user(self.get_converstion_step('1'), self.password)
+    #             user_db = db.query(User).filter(User.name == self.get_conversation_step_json('1'),
+    #                                             User.password == answer).first()
+    #             if user_db is None:
+    #                 print("user not found!")
+    #                 return False
+    #             print("User found!")
+    #             self.password = answer
+    #             db.commit()
+    #         case 3:
+    #             print(f"check if chosen '{answer}' valid")
+    #             # choises = {a.name: a.id for a in db.query(Items).all()}
+    #             choises = moses_api.get_product_by_user(self.user_id, self.password)
+    #             if answer not in choises:
+    #                 return False
+    #             res = db.query(Items.id).filter(Items.name == answer).first()
+    #             if len(res) == 0:
+    #                 print(f"Item not exist {answer}")
+    #                 return False
+    #         case 4:
+    #             print(f"Check if product '{answer}' exist")
+    #             if answer not in moses_api.get_product_number_by_user(self.user_id, self.password):
+    #                 return False
+    #         case 5:
+    #             print(f"Check if phone number '{answer}' is valid")
+    #             if answer != "1":
+    #                 # rule = re.compile(r'(^[+0-9]{1,3})*([0-9]{10,11}$)')
+    #                 rule = re.compile(r'(^\+?(972|0)(\-)?0?(([23489]{1}\d{7})|[5]{1}\d{8})$)')
+    #                 if not rule.search(answer):
+    #                     msg = "המספר שהוקש איננו תקין"
+    #                     print(msg)
+    #                     return False
+    #         case 6:
+    #             print(f"NO NEED TO VALIDATE ISSUE")
+    #     return True
 
     def validation_switch_step(self, db, case, answer):
         if case == 1:
