@@ -160,7 +160,8 @@ async def handle_message_with_request_scheme(data: WebhookRequestData, db: Sessi
                         message = process_bot_response(db, text, button_selected=True)
                     else:
                         print(f"Type {type} is not valid")
-                        message = f"Json '{event['value']['messages'][0]}'"
+                        message = f"Json: '{event['value']['messages'][0]}'"
+                        print(message)
                     return Response(content=message)
         else:
             print(data.object)
