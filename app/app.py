@@ -158,6 +158,12 @@ async def handle_message_with_request_scheme(data: WebhookRequestData, db: Sessi
                         text = event['value']['messages'][0]['button']['text']
                         sender = event['value']['messages'][0]['from']
                         message = process_bot_response(db, text, button_selected=True)
+                    elif type == "interactive":
+                        text = event['value']['messages'][0]['interactive']['button_reply']["title"]
+                        sender = event['value']['messages'][0]['from']
+                        message = process_bot_response(db, text, button_selected=True)
+                        res = f"Json: '{event['value']['messages'][0]}'"
+                        print(res)
                     else:
                         print(f"Type {type} is not valid")
                         message = f"Json: '{event['value']['messages'][0]}'"
@@ -189,6 +195,7 @@ async def verify(request: Request):
 
 
 def check_for_timeout(db, sender):
+    return True
     session = db.query(ConversationSession).filter(ConversationSession.user_id == sender,
                                                    ConversationSession.session_active == False).order_by(
         ConversationSession.start_data.desc()).first()
