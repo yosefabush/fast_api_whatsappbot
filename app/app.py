@@ -7,7 +7,7 @@ from json import JSONDecodeError
 from sqlalchemy.orm import Session
 from requests.structures import CaseInsensitiveDict
 from DatabaseConnection import SessionLocal, engine
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 
 requests.packages.urllib3.disable_warnings()
 
@@ -144,9 +144,24 @@ async def handle_message_with_request_scheme(data: WebhookRequestData, db: Sessi
                                     event.get("field", None) == "messages"]
                 print(f"total events: '{len(messaging_events)}'")
                 for event in messaging_events:
-                    text = event['value']['messages'][0]['text']['body']
-                    sender = event['value']['messages'][0]['from']
-                    message = process_bot_response(db, text)
+                    type = event['value']['messages'][0].get('type', None)
+                    if type is None:
+                        print("None type")
+                        return Response(content="None type found", status_code=status.HTTP_400_BAD_REQUEST)
+                    if type == "text":
+                        print("text")
+                        text = event['value']['messages'][0]['text']['body']
+                        sender = event['value']['messages'][0]['from']
+                        message = process_bot_response(db, text)
+                    elif type == "button":
+                        print("Button")
+                        text = event['value']['messages'][0]['button']['text']
+                        sender = event['value']['messages'][0]['from']
+                        message = process_bot_response(db, text, button_selected=True)
+                    else:
+                        print(f"Type {type} is not valid")
+                        message = "Type {type} is not valid"
+                    return Response(content=message)
         else:
             print(data.object)
         return Response(content=message)
@@ -186,7 +201,7 @@ def check_for_timeout(db, sender):
     return True
 
 
-def process_bot_response(db, user_msg: str) -> str:
+def process_bot_response(db, user_msg: str, button_selected=False) -> str:
     log = ""
     if user_msg in ["אדמין"]:
         created_issues_history = db.query(Issues).filter(Issues.issue_sent_status == True).all()
@@ -200,8 +215,9 @@ def process_bot_response(db, user_msg: str) -> str:
             session.set_status(db, False)
         print("All conversation were reset")
         return "All conversation were reset"
+    next_step_conversation_after_increment = ""
     session = check_if_session_exist(db, sender)
-    if session is None:
+    if session is None or session.call_flow_location == 0:
         if not check_for_timeout(db, sender):
             print(f"Please wait '{TIME_PASS_FROM_LAST_SESSION}' min")
             send_response_using_whatsapp_api(
@@ -211,39 +227,45 @@ def process_bot_response(db, user_msg: str) -> str:
         steps_message = ""
         for key, value in conversation_steps.items():
             steps_message += f"{value} - {key}\n"
+        print(f"{steps_message}")
 
         send_response_using_whatsapp_api(conversation["Greeting"])
-        print(f"{steps_message}")
-        # us = db.query(User.id).filter(User.phone == sender).first()
-        session = ConversationSession(user_id=sender, db=db)
-        db.add(session)
-        db.commit()
-        send_response_using_whatsapp_api(conversation_steps[str(session.call_flow_location)])
+        if session is None:
+            session = ConversationSession(user_id=sender, db=db)
+            db.add(session)
+            db.commit()
         session.increment_call_flow(db)
+        send_response_using_whatsapp_api(conversation_steps[str(session.call_flow_location)])
         return conversation["Greeting"]
     else:
         current_conversation_step = str(session.call_flow_location)
-        if current_conversation_step == "8":
-            print("Session already end, set end status")
-            session.set_status(db, False)
-            return "Session already end, set end status"
         print(f"Current step is: {current_conversation_step}")
         is_answer_valid, message_in_error = session.validate_and_set_answer(db, current_conversation_step, user_msg)
         if is_answer_valid:
+            if not button_selected:
+                session.increment_call_flow(db)
+                next_step_conversation_after_increment = str(session.call_flow_location)
             if current_conversation_step == "2":
                 send_response_using_whatsapp_api("שלום " + session.get_converstion_step("1") + "!")
-            if current_conversation_step == "3":
-                # choices = ["ב", "א"]
+                send_response_using_whatsapp_api(conversation_steps[next_step_conversation_after_increment])
+                # regarding step 3
                 choices = session.get_chooses(db)
-                send_response_using_whatsapp_api(f"{conversation_steps[current_conversation_step]}\n{choices}\n")
+                send_interactive_response(conversation_steps[current_conversation_step], choices)
+                return "Choose..."
+            elif current_conversation_step == "3":
+                if button_selected:
+                    print(f"drop menu: {user_msg}")
+                    session.increment_call_flow(db)
+                    next_step_conversation_after_increment = str(session.call_flow_location)
+                    send_response_using_whatsapp_api(conversation_steps[next_step_conversation_after_increment])
             else:
-                send_response_using_whatsapp_api(conversation_steps[current_conversation_step])
-            session.increment_call_flow(db)
-            next_step_conversation_after_increment = str(session.call_flow_location)
+                send_response_using_whatsapp_api(conversation_steps[next_step_conversation_after_increment])
             # Check if conversation reach to last step
-            if next_step_conversation_after_increment == str(len(conversation_steps) + 1):  # 7
-                new_issue = Issues(conversation_id=session.id, item_id=session.get_converstion_step("3"),
-                                   issue_data=session.get_converstion_step(str(int(current_conversation_step) - 1)))
+            if next_step_conversation_after_increment == str(len(conversation_steps)):  # 7
+                new_issue = Issues(conversation_id=session.id,
+                                   item_id=session.get_converstion_step("3"),
+                                   issue_data=session.get_converstion_step(str(int(current_conversation_step)))
+                                   )
                 db.add(new_issue)
                 db.commit()
                 summary = json.loads(session.convers_step_resp)
@@ -262,16 +284,10 @@ def process_bot_response(db, user_msg: str) -> str:
         else:
             print("Try again")
             send_response_using_whatsapp_api(message_in_error)
-            fixed_step = str(int(current_conversation_step) - 1)
-            if fixed_step == "3":
-                # choices = ["ב", "א"]
-                choices = session.get_chooses(db)
-                return send_response_using_whatsapp_api(f"{conversation_steps[fixed_step]}\n{choices}\n")
-            else:
-                return send_response_using_whatsapp_api(conversation_steps[fixed_step])
+            return conversation_steps[current_conversation_step]
 
 
-def send_response_using_whatsapp_api(message, phone_number=PHONE_NUMBER_ID_PROVIDER, debug=True):
+def send_response_using_whatsapp_api(message, debug=True):
     """Send a message using the WhatsApp Business API."""
     try:
         print(f"Sending message: '{message}' ")
@@ -308,6 +324,43 @@ def send_response_using_whatsapp_api(message, phone_number=PHONE_NUMBER_ID_PROVI
             return f"Failed send message, response: '{response}'"
         print(f"Message sent successfully to :'{sender}'!")
         return f"Message sent successfully to :'{sender}'!"
+    except Exception as EX:
+        print(f"Error send whatsapp : '{EX}'")
+        raise EX
+
+
+def send_interactive_response(message, chooses):
+    try:
+        print(f"Sending interactive message: '{chooses}' ")
+        url = f"{FACEBOOK_API_URL}/{PHONE_NUMBER_ID_PROVIDER}/messages"
+
+        buttons = [{
+            "type": "reply",
+            "reply": {
+                "id": i,
+                "title": msg
+            }} for i, msg in enumerate(chooses)]
+
+        payload = {
+            "messaging_product": "whatsapp",
+            "recipient_type": "individual",
+            "to": f"{sender}",
+            "type": "interactive",
+            "interactive": {
+                "type": "button",
+                "body": {
+                    "text": f"{message}"
+                },
+                "action": {
+                    "buttons": json.dumps(buttons)
+                }
+            }
+        }
+        response = requests.post(url, json=payload, headers=headers, verify=False)
+        if not response.ok:
+            return f"Failed send message, response: '{response}'"
+        print(f"Message sent successfully to :'{sender}'!")
+        return f"Interactive sent successfully to :'{sender}'!"
     except Exception as EX:
         print(f"Error send whatsapp : '{EX}'")
         raise EX

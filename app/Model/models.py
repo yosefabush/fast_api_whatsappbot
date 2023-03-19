@@ -59,11 +59,13 @@ class ConversationSession(Base):
         "6": "נא רשום בקצרה את תיאור הפנייה",
         "7": "פנייתך התקבלה, נציג טלפוני יחזור אליך בהקדם.",
     }
+    MAX_LOGING_ATTEMPTS = 3
     __tablename__ = 'conversation'
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(String(255), unique=False, index=True)
     password = Column(String(255), unique=False, index=True)
+    login_attempts = Column(Integer)
     call_flow_location = Column(Integer)
     issue_to_be_created = Column(String(255), unique=True, index=True)
     start_data = Column(TIMESTAMP(timezone=False), nullable=False, default=datetime.datetime.now())
@@ -73,8 +75,8 @@ class ConversationSession(Base):
 
     def __init__(self, user_id, db: Session):
         self.user_id = user_id
-        self.password = None
-        self.call_flow_location = 1
+        self.login_attempts = 0
+        self.call_flow_location = 0
         self.issue_to_be_created = None
         # self.start_data = None
         self.session_active = True
@@ -141,19 +143,32 @@ class ConversationSession(Base):
     def validation_switch_step(self, db, case, answer):
         if case == 1:
             print(f"Check if user name '{answer}' valid")
+            # user_db = db.query(User).filter(User.name == answer).first()
+            # if user_db is None:
+            #     print("user name not exist")
+            #     return False
+            # self.set_convertsion_step(case, answer)
         elif case == 2:
-            print(f"Check if password '{answer}' valid")
-            print(f"Search for user with user name '{self.get_converstion_step('1')}' and password '{answer}'")
+            print(f"Log in with password '{answer}'")
+            print(f"Search for user with user name '{self.get_conversation_step_json('1')}' and password '{answer}'")
             # user_db = moses_api.get_product_by_user(self.get_converstion_step('1'), self.password)
-            user_db = db.query(User).filter(User.name == self.get_converstion_step('1'),
+            user_db = db.query(User).filter(User.name == self.get_conversation_step_json('1'),
                                             User.password == answer).first()
             if user_db is None:
+                print("user not found!")
                 return False
+            print("User found!")
+            self.password = answer
+            db.commit()
         elif case == 3:
             print(f"check if chosen '{answer}' valid")
             # choises = {a.name: a.id for a in db.query(Items).all()}
             choises = moses_api.get_product_by_user(self.user_id, self.password)
             if answer not in choises:
+                return False
+            res = db.query(Items.id).filter(Items.name == answer).first()
+            if len(res) == 0:
+                print(f"Item not exist {answer}")
                 return False
         elif case == 4:
             print(f"Check if product '{answer}' exist")
@@ -162,8 +177,9 @@ class ConversationSession(Base):
         elif case == 5:
             print(f"Check if phone number '{answer}' is valid")
             if answer != "1":
-                rule = re.compile(r'(^[+0-9]{1,3})*([0-9]{10,11}$)')
-                if rule.search(answer):
+                # rule = re.compile(r'(^[+0-9]{1,3})*([0-9]{10,11}$)')
+                rule = re.compile(r'(^\+?(972|0)(\-)?0?(([23489]{1}\d{7})|[5]{1}\d{8})$)')
+                if not rule.search(answer):
                     msg = "המספר שהוקש איננו תקין"
                     print(msg)
                     return False
@@ -174,35 +190,43 @@ class ConversationSession(Base):
         return True
 
     def validate_and_set_answer(self, db, step, response):
-        step = int(step) - 1
-
-        # if self.all_validation(db, step, response):
+        step = int(step)
         if self.validation_switch_step(db, step, response):
             if step == 3:
-                db_key_value = {a.name: a.id for a in db.query(Items).all()}
-                chosen_group = self.get_chooses(db)
-                if "מחשב" in chosen_group:
-                    chosen_group = "מחשבים"
-                else:
-                    print(f"Not valid response {response} for {self.conversation_steps_in_class[str(step)]}")
-                    result = f" ערך לא חוקי '{response}' "
-                    return False, result
-                # {a.name: a.id for a in chises_dict}
-                self.set_convertsion_step(step, db_key_value[chosen_group])
+                item_id = db.query(Items.id).filter(Items.name == response).first()
+                response = item_id[0]
+                self.set_conversion_step(step, response)
             elif step == 5:
                 if response == "1":
                     # user_id is phone number in conversation
-                    self.set_convertsion_step(step, self.user_id)
+                    self.set_conversion_step(step, self.user_id)
                 else:
-                    self.set_convertsion_step(step, response)
+                    self.set_conversion_step(step, response)
             else:
-                self.set_convertsion_step(step, response)
-            print(f"{self.get_converstion_step(str(step))}")
+                self.set_conversion_step(step, response)
+            print(f"session object step {self.get_conversation_step_json(str(step))}")
             result = f"{self.conversation_steps_in_class[str(step)]}: {response}"
             return True, result
         else:
-            print(f"Not valid response {response} for {self.conversation_steps_in_class[str(step)]}")
-            result = f" ערך לא חוקי '{response}' "
+            if self.call_flow_location in [2]:
+                result = "סיסמא שגויה אנא נסה שוב"
+                self.login_attempts += 1
+                db.commit()
+                if self.login_attempts == self.MAX_LOGING_ATTEMPTS:
+                    print("restart session")
+                    # session = db.query(ConversationSession).filter(ConversationSession.id == self.id).first()
+                    self.call_flow_location = 0
+                    self.login_attempts = 0
+                    db.commit()
+                    result = "בשל ריבוי ניסיונות החיבור נכשל, על מנת להמשיך שלח הודעה כדי להתחיל הזדהות מחדש"
+                else:
+                    print(f"login failure number '{self.login_attempts}'")
+            else:
+                if self.call_flow_location == 1:
+                    result = "שם משתמש שגוי אנא נסה שוב"
+                else:
+                    result = f" ערך לא חוקי '{response}' "
+                print(f"Not valid response {response} for {self.conversation_steps_in_class[str(step)]}")
             return False, result
 
     def set_status(self, db, status):
@@ -214,19 +238,19 @@ class ConversationSession(Base):
     def get_chooses(self, db):
         # [a.name for a in db.query(Items.name).all()]
         # choices = {a.name: a.id for a in db.query(Items).all()} list(choices.keys())
-        choices = moses_api.get_product_by_user(self.get_converstion_step('1'), self.password)
+        choices = moses_api.get_product_by_user(self.get_conversation_step_json('1'), self.password)
         print(f"Allowed values: '{choices}'")
         return choices
 
     def get_all_responses(self):
         return self.convers_step_resp
 
-    def set_convertsion_step(self, step, value):
+    def set_conversion_step(self, step, value):
         temp = json.loads(self.convers_step_resp)
         temp[str(step)] = value
         self.convers_step_resp = json.dumps(temp)
 
-    def get_converstion_step(self, step):
+    def get_conversation_step_json(self, step):
         return json.loads(self.convers_step_resp)[step]
 
 
@@ -238,8 +262,7 @@ class UserSchema(BaseModel):
 
     class Config:
         orm_model = True
-#
-#
+
 # class ItemsSchema(BaseModel):
 #     id: int
 #     name: str
