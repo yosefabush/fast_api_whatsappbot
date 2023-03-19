@@ -246,7 +246,7 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                 session.increment_call_flow(db)
                 next_step_conversation_after_increment = str(session.call_flow_location)
             if current_conversation_step == "2":
-                send_response_using_whatsapp_api("שלום " + session.get_converstion_step("1") + "!")
+                send_response_using_whatsapp_api("שלום " + session.get_conversation_step_json("1") + "!")
                 send_response_using_whatsapp_api(conversation_steps[next_step_conversation_after_increment])
                 # regarding step 3
                 choices = session.get_chooses(db)
@@ -263,8 +263,8 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
             # Check if conversation reach to last step
             if next_step_conversation_after_increment == str(len(conversation_steps)):  # 7
                 new_issue = Issues(conversation_id=session.id,
-                                   item_id=session.get_converstion_step("3"),
-                                   issue_data=session.get_converstion_step(str(int(current_conversation_step)))
+                                   item_id=session.get_conversation_step_json("3"),
+                                   issue_data=session.get_conversation_step_json(str(int(current_conversation_step)))
                                    )
                 db.add(new_issue)
                 db.commit()
