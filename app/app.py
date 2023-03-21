@@ -42,7 +42,7 @@ non_working_hours_msg = """שלום, השירות פעיל בימים א'-ה' ב
 conversation_steps = ConversationSession.conversation_steps_in_class
 
 # conversation_history = list()
-app = FastAPI(debug=True)
+app = FastAPI(debug=False)
 
 
 # Request Models.
@@ -244,7 +244,7 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
             db.commit()
         session.increment_call_flow(db)
         send_response_using_whatsapp_api(conversation_steps[str(session.call_flow_location)])
-        return conversation["Greeting"]
+        return conversation_steps[str(session.call_flow_location)]
     else:
         current_conversation_step = str(session.call_flow_location)
         print(f"Current step is: {current_conversation_step}")
@@ -257,33 +257,47 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                 send_response_using_whatsapp_api("שלום " + session.get_conversation_step_json("1") + "!")
                 # send_response_using_whatsapp_api(conversation_steps[next_step_conversation_after_increment])
                 # regarding step 3
-                choices = session.get_chooses(db)
-                send_interactive_response(conversation_steps[next_step_conversation_after_increment], choices)
-                return "Choose..."
-            elif current_conversation_step == "3":
+                # choices = session.get_options_subjects(db)
+                choices = session.get_all_cliten_product_and_save_db_subjects2(db)
+                return send_interactive_response(conversation_steps[next_step_conversation_after_increment], choices)
+            elif current_conversation_step in ["3", "4"]:
                 if button_selected:
                     print(f"drop menu: {user_msg}")
                     session.increment_call_flow(db)
                     next_step_conversation_after_increment = str(session.call_flow_location)
-                    send_response_using_whatsapp_api(conversation_steps[next_step_conversation_after_increment])
+                    if next_step_conversation_after_increment != "3":
+                        # prevent two prints
+                        send_response_using_whatsapp_api(conversation_steps[next_step_conversation_after_increment])
+                        return conversation_steps[next_step_conversation_after_increment]
+                    print("tese erea")
+                if current_conversation_step == "3":
+                    # regarding step 4
+                    products = session.get_products(db, user_msg)
+                    # send_interactive_response(conversation_steps[next_step_conversation_after_increment],list(products.values()))
+                    return send_interactive_response(conversation_steps[next_step_conversation_after_increment], products)
+                    # return "Choose product..."
             else:
                 send_response_using_whatsapp_api(conversation_steps[next_step_conversation_after_increment])
+                # regarding last step
+                if next_step_conversation_after_increment != str(len(conversation_steps)):
+                    return conversation_steps[next_step_conversation_after_increment]
             # Check if conversation reach to last step
             if next_step_conversation_after_increment == str(len(conversation_steps)):  # 7
                 new_issue = Issues(conversation_id=session.id,
-                                   item_id=session.get_conversation_step_json("3"),
+                                   item_id=int(session.get_conversation_step_json("4")),
                                    issue_data=session.get_conversation_step_json(str(int(current_conversation_step)))
                                    )
                 db.add(new_issue)
                 db.commit()
+                print(f"Issue successfully created! {new_issue}")
                 summary = json.loads(session.convers_step_resp)
-                data = {"technicianName": f"{summary['5']}", "kria": f"{summary['6']}", "clientCode": f"{18047}"}
-                # data = {"technicianName": f"{summary['5']}", "kria": f"{new_issue.issue_data}", "clientCode": f"{18047}"}
+                client_id = session.password.split(";")[1]
+                data = {"technicianName": f"{summary['5']}", "kria": f"{summary['6']}", "clientCode": f"{client_id}"}
                 if moses_api.create_kria(data):
-                    print(f"Issue successfully created! {data}")
+                    print(f"Kria successfully created! {data}")
                     new_issue.set_issue_status(db, True)
                 else:
-                    print(f"Failed to create Kria")
+                    print(f"Failed to create Kria {data}")
                 print("Conversation ends!")
                 session.set_status(db, False)
                 return "Conversation ends!"
@@ -295,7 +309,7 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
             return conversation_steps[current_conversation_step]
 
 
-def send_response_using_whatsapp_api(message, debug=True):
+def send_response_using_whatsapp_api(message, debug=False):
     """Send a message using the WhatsApp Business API."""
     try:
         print(f"Sending message: '{message}' ")
@@ -368,7 +382,8 @@ def send_interactive_response(message, chooses):
         if not response.ok:
             return f"Failed send message, response: '{response}'"
         print(f"Message sent successfully to :'{sender}'!")
-        return f"Interactive sent successfully to :'{sender}'!"
+        # return f"Interactive sent successfully to :'{sender}'!"
+        return message
     except Exception as EX:
         print(f"Error send whatsapp : '{EX}'")
         raise EX

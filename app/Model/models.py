@@ -1,11 +1,10 @@
-import json
 import re
-
+import json
 import datetime
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, TIMESTAMP
+from sqlalchemy import Boolean, Column, Integer, String, TIMESTAMP
 
 from Model import moses_api
 
@@ -38,7 +37,7 @@ class Issues(Base):
     __tablename__ = "issues"
     id = Column(Integer, primary_key=True, index=True)
     conversation_id = Column(String(255), unique=False, index=True)
-    item_id = Column(Integer, ForeignKey("items.id"))
+    item_id = Column(Integer)
     issue_data = Column(String(255), unique=False)
     issue_sent_status = Column(Boolean, default=False)
 
@@ -67,7 +66,7 @@ class ConversationSession(Base):
     password = Column(String(255), unique=False, index=True)
     login_attempts = Column(Integer)
     call_flow_location = Column(Integer)
-    issue_to_be_created = Column(String(255), unique=True, index=True)
+    all_client_products_in_service = Column(String(2000), unique=False)
     start_data = Column(TIMESTAMP(timezone=False), nullable=False, default=datetime.datetime.now())
     # start_data = Column('timestamp', TIMESTAMP(timezone=False), nullable=False, default=datetime.datetime.now())
     session_active = Column(Boolean, default=True)
@@ -77,7 +76,7 @@ class ConversationSession(Base):
         self.user_id = user_id
         self.login_attempts = 0
         self.call_flow_location = 0
-        self.issue_to_be_created = None
+        self.all_client_products_in_service = None
         # self.start_data = None
         self.session_active = True
         self.convers_step_resp = json.dumps({"1": "",
@@ -152,62 +151,92 @@ class ConversationSession(Base):
     #     return True
 
     def validation_switch_step(self, db, case, answer):
-        if case == 1:
-            print(f"Check if user name '{answer}' valid")
-            # user_db = db.query(User).filter(User.name == answer).first()
-            # if user_db is None:
-            #     print("user name not exist")
-            #     return False
-            # self.set_convertsion_step(case, answer)
-        elif case == 2:
-            print(f"Log in with password '{answer}'")
-            print(f"Search for user with user name '{self.get_conversation_step_json('1')}' and password '{answer}'")
-            # user_db = moses_api.get_product_by_user(self.get_converstion_step('1'), self.password)
-            user_db = db.query(User).filter(User.name == self.get_conversation_step_json('1'),
-                                            User.password == answer).first()
-            if user_db is None:
-                print("user not found!")
-                return False
-            print("User found!")
-            self.password = answer
-            db.commit()
-        elif case == 3:
-            print(f"check if chosen '{answer}' valid")
-            # choises = {a.name: a.id for a in db.query(Items).all()}
-            choises = moses_api.get_product_by_user(self.user_id, self.password)
-            if answer not in choises:
-                return False
-            res = db.query(Items.id).filter(Items.name == answer).first()
-            if len(res) == 0:
-                print(f"Item not exist {answer}")
-                return False
-        elif case == 4:
-            print(f"Check if product '{answer}' exist")
-            if answer not in moses_api.get_product_number_by_user(self.user_id, self.password):
-                return False
-        elif case == 5:
-            print(f"Check if phone number '{answer}' is valid")
-            if answer != "1":
-                # rule = re.compile(r'(^[+0-9]{1,3})*([0-9]{10,11}$)')
-                rule = re.compile(r'(^\+?(972|0)(\-)?0?(([23489]{1}\d{7})|[5]{1}\d{8})$)')
-                if not rule.search(answer):
-                    msg = "המספר שהוקש איננו תקין"
-                    print(msg)
+        try:
+            if case == 1:
+                print(f"Check if user name '{answer}' valid")
+                # user_db = db.query(User).filter(User.name == answer).first()
+                # if user_db is None:
+                #     print("user name not exist")
+                #     return False
+                # self.set_convertsion_step(case, answer)
+            elif case == 2:
+                print(f"Log in with password '{answer}'")
+                print(f"Search for user with user name '{self.get_conversation_step_json('1')}' and password '{answer}'")
+                # user_db = moses_api.get_product_by_user(self.get_converstion_step('1'), self.password)
+                # user_db = db.query(User).filter(User.name == self.get_conversation_step_json('1'),
+                #                                 User.password == answer).first()
+                client_id = moses_api.login_whatsapp(self.get_conversation_step_json('1'), answer)
+                if client_id is None:
                     return False
-        elif case == 6:
-            print(f"NO NEED TO VALIDATE ISSUE")
-        else:
+                # if user_db is None:
+                #     print("user not found!")
+                #     return False
+                # print("User found!")
+                self.password = f"{answer};{client_id}"
+                db.commit()
+            elif case == 3:
+                print(f"check if chosen '{answer}' valid")
+                # choises = {a.name: a.id for a in db.query(Items).all()}
+                #choises = moses_api.get_subjects_by_user_and_password(self.password.split(";")[1])
+                # choises = self.get_options_subjects(db)
+                # group = list(dict.fromkeys([name["ProductSherotName"].split("-")[0].strip() for name in choises["table"]]))
+                # if answer not in group:
+                #     return False
+                choices = json.loads(self.all_client_products_in_service)
+                print(f"subjects {list(choices.keys())}")
+                # res = [r for r in choises if answer == r["NumComp"]]
+                # distinct_values = dict()
+                # for row in choices:
+                #     clean_name = row['ProductSherotName'].split("-")[0].strip()
+                #     if clean_name not in distinct_values.keys():
+                #         distinct_values[clean_name] = [row['NumComp']]
+                #         print("new")
+                #     else:
+                #         distinct_values[clean_name].append(row['NumComp'])
+                #         print("else")
+                # res = False if answer not in distinct_values.keys() else True
+                # if not res:
+                #     return False
+                # db.commit()
+                # res = db.query(Items.id).filter(Items.name == answer).first()
+                # if len(res) == 0:
+                #     print(f"Item not exist {answer}")
+                #     return False
+            elif case == 4:
+                print(f"Check if product '{answer}' exist")
+                choices = json.loads(self.all_client_products_in_service)
+                print(f"Products {list(choices.values())}")
+                # products = moses_api.get_product_number_by_user(self.user_id, self.password)
+                # products = self.get_products(db)
+                # if answer not in list(products.values()):
+                #     return False
+            elif case == 5:
+                print(f"Check if phone number '{answer}' is valid")
+                if answer != "1":
+                    # rule = re.compile(r'(^[+0-9]{1,3})*([0-9]{10,11}$)')
+                    rule = re.compile(r'(^\+?(972|0)(\-)?0?(([23489]{1}\d{7})|[5]{1}\d{8})$)')
+                    if not rule.search(answer):
+                        msg = "המספר שהוקש איננו תקין"
+                        print(msg)
+                        return False
+            elif case == 6:
+                print(f"NO NEED TO VALIDATE ISSUE")
+            else:
+                return False
+            return True
+        except Exception as ex:
+            print(f"step {case} {ex}")
             return False
-        return True
 
     def validate_and_set_answer(self, db, step, response):
         step = int(step)
         if self.validation_switch_step(db, step, response):
-            if step == 3:
-                item_id = db.query(Items.id).filter(Items.name == response).first()
-                response = item_id[0]
-                self.set_conversion_step(step, response, db)
-            elif step == 5:
+            # if step == 4:
+            #     item_id = db.query(Items.id).filter(Items.name == response).first()
+            #     response = item_id[0]
+            #     self.set_conversion_step(step, response, db)
+            #
+            if step == 5:
                 if response == "1":
                     # user_id is phone number in conversation
                     self.set_conversion_step(step, self.user_id, db)
@@ -246,12 +275,71 @@ class ConversationSession(Base):
         db.commit()
         # self.session_active = status
 
-    def get_chooses(self, db):
+    def get_options_subjects(self, db):
         # [a.name for a in db.query(Items.name).all()]
         # choices = {a.name: a.id for a in db.query(Items).all()} list(choices.keys())
-        choices = moses_api.get_product_by_user(self.get_conversation_step_json('1'), self.password)
+        choices = moses_api.get_subjects_by_user_and_password(self.password.split(";")[1])
+        if choices is None:
+            raise Exception("No options found")
         print(f"Allowed values: '{choices}'")
-        return choices
+        self.all_client_products_in_service = json.dumps(choices)
+        db.commit()
+        print("saved to DB!")
+        # distinct_values = {row['NumComp']:row['ProductSherotName'].split("-")[0].strip() for row in choices}
+        distinct_values = dict()
+        for row in choices:
+            clean_name = row['ProductSherotName'].split("-")[0].strip()
+            if clean_name not in distinct_values.keys():
+                distinct_values[clean_name] = [row['NumComp']]
+                print("new")
+            else:
+                distinct_values[clean_name].append(row['NumComp'])
+                print("else")
+        return list(distinct_values.keys())
+
+        # as_list = list()
+        # for a in choices:
+        #     print(a)
+        #     as_list.append({a["NumComp"]: f"{a['ProductSherotName']},{a['NumComp']}"})
+        # res = list()
+        # for a in as_list:
+        #     for v in a.values():
+        #         res.append(v)
+        # return res
+
+    def get_all_cliten_product_and_save_db_subjects2(self, db):
+        choices = moses_api.get_sorted_product_by_user_and_password(self.password.split(";")[1])
+        if choices is None:
+            raise Exception("No options found")
+        print(f"Allowed values: '{choices}'")
+        self.all_client_products_in_service = json.dumps(choices)
+        db.commit()
+        print("saved to DB!")
+        # distinct_product_values = dict()
+        # for row in choices:
+        #     if row['ProductSherotName'] not in distinct_product_values.keys():
+        #         distinct_product_values[row['ProductSherotName']] = [row['NumComp']]
+        #         print("new product")
+        #     else:
+        #         distinct_product_values[row['ProductSherotName']].append(row['NumComp'])
+        #         print("exist product")
+        return list(choices.keys())
+
+    def get_products(self, db, msg):
+        choices = json.loads(self.all_client_products_in_service)
+        distinct_values = choices.get(msg, None)
+        # distinct_values = dict()
+        # for row in choices:
+        #     clean_name = row['ProductSherotName'].split("-")[0].get_products()
+        #     if clean_name not in distinct_values.keys():
+        #         distinct_values[clean_name] = [row['NumComp']]
+        #         print("new")
+        #     else:
+        #         distinct_values[clean_name].append(row['NumComp'])
+        #         print("else")
+        return distinct_values
+        # products = moses_api.get_product_number_by_user(self.user_id, self.password)
+        # return products
 
     def get_all_responses(self):
         return self.convers_step_resp

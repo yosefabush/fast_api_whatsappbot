@@ -1,15 +1,24 @@
 import json
+import base64
 import requests
 import xml.etree.ElementTree as ET
 
 END_POINT = "https://026430010.co.il/MosesTechWebService/Service1.asmx"
-PERFIX_USER = 448
-PERFIX_PASSWORD = 456789
+# encode code
+PERFIX_USER_ID = 'NDQ4'
+PERFIX_PASSWORD = 'NDU2Nzg5'
+
+base64_bytes = PERFIX_USER_ID.encode('ascii')
+message_bytes = base64.b64decode(base64_bytes)
+PERFIX_USER_ID = int(message_bytes.decode('ascii'))
+
+base64_bytes = PERFIX_PASSWORD.encode('ascii')
+message_bytes = base64.b64decode(base64_bytes)
+PERFIX_PASSWORD = int(message_bytes.decode('ascii'))
 
 
 def create_kria(data):
-    # "id": f"{448}", "password": f"{summary['2']}"
-    data["id"] = PERFIX_USER
+    data["id"] = PERFIX_USER_ID
     data["password"] = PERFIX_PASSWORD
     return True
     url = END_POINT + f"/InsertNewCall"
@@ -20,48 +29,65 @@ def create_kria(data):
     return False
 
 
-def get_product_by_user(user_name, password):
+def get_subjects_by_user_and_password(client_id):
+    print("GetClientProductsInService")
     res = {'table': [{'NumComp': '200401', 'ProductSherotName': 'מחשב - ELISHA-PC'},
                      {'NumComp': '501384', 'ProductSherotName': 'מחשב - אלישע'}]}
-    return list(dict.fromkeys([name["ProductSherotName"].split("-")[0].strip() for name in res["table"]]))
-    new_url = END_POINT + f"/AllDataAndCLientId?name={user_name}&password&{password}"
-    data = requests.get(new_url, verify=False)
-
-    url = END_POINT + F"/GetClientProductsInService?clientId={data.client_id}&Id={data.user_id}&password&{password}"
+    # return list(dict.fromkeys([name["ProductSherotName"].split("-")[0].strip() for name in res["table"]]))
+    # return {row['NumComp']:row['ProductSherotName'] for row in res["table"]}
+    url = END_POINT + F"/GetClientProductsInService?clientId={client_id}&Id={PERFIX_USER_ID}&password={PERFIX_PASSWORD}"
     response = requests.get(url, verify=False)
     if response.ok:
         root = ET.fromstring(response.content)
         data = json.loads(root.text)
-        distinct_values = set()
-        for k in data["table"]:
-            for ke, va in k.items():
-                clean = va.split('-')[0]
-                distinct_values.add(clean)
-                print(va.split('-')[0])
-        return distinct_values
+        return data["table"]
+        # return data
+        # distinct_values = set()
+        # for k in data["table"]:
+        #     for ke, va in k.items():
+        #         clean = va.split('-')[0]
+        #         distinct_values.add(clean)
+        #         print(va.split('-')[0])
+        # return data["table"], distinct_values
     return None
 
 
-def get_product_number_by_user(user_name, password):
+def get_sorted_product_by_user_and_password(client_id):
     res = {'table': [{'NumComp': '200401', 'ProductSherotName': 'מחשב - ELISHA-PC'},
                      {'NumComp': '501384', 'ProductSherotName': 'מחשב - אלישע'}]}
-    return list(dict.fromkeys([name["NumComp"].split("-")[0].strip() for name in res["table"]]))
-    new_url = END_POINT + f"/AllDataAndCLientId?name={user_name}&password&{password}"
-    data = requests.get(new_url, verify=False)
-
-    url = END_POINT + F"/GetClientProductsInService?clientId={data.client_id}&Id={data.user_id}&password&{password}"
+    # data = {"clientId": client_id, "id": PERFIX_USER_ID, "password": PERFIX_PASSWORD}
+    # url = END_POINT + f"/GetClientProductsInServiceForWhatsapp"
+    # headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+    # response = requests.post(url, data=data, headers=headers)
+    url = END_POINT + F"/GetClientProductsInServiceForWhatsapp?clientId={client_id}&Id={PERFIX_USER_ID}&password={PERFIX_PASSWORD}"
     response = requests.get(url, verify=False)
     if response.ok:
         root = ET.fromstring(response.content)
         data = json.loads(root.text)
-        distinct_values = set()
-        for k in data["table"]:
-            for ke, va in k.items():
-                clean = va.split('-')[1]
-                distinct_values.add(clean)
-                print(va.split('-')[1])
-        return distinct_values
+        # return data["table"]
+        distinct_product_values = dict()
+        for row in data["table"]:
+            if row['ProductSherotName'] not in distinct_product_values.keys():
+                distinct_product_values[row['ProductSherotName']] = [row['NumComp']]
+                print("new product")
+            else:
+                distinct_product_values[row['ProductSherotName']].append(row['NumComp'])
+                print("exist product")
+        return distinct_product_values
     return None
+
+
+def login_whatsapp(user, password):
+    data = {"username": user, "password": password}
+    url = END_POINT + f"/LoginWhatsapp"
+    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+    response = requests.post(url, data=data, headers=headers)
+    if response.ok:
+        root = ET.fromstring(response.content)
+        data = json.loads(root.text)
+        return data
+    return False
+
 # Todo: #
 #  1) add ProductServiceId to Insert new
 #  2) add new end point to get all necessary data (client_id)
