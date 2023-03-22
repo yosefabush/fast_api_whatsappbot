@@ -407,7 +407,8 @@ def check_if_session_exist(db, user_id):
 
 def after_working_hours():
     # Get Day Number from weekday
-    # return False
+    # Todo: remove False
+    return False
     week_num = datetime.today().weekday()
 
     if week_num > 5:
