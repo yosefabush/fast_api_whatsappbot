@@ -20,6 +20,7 @@ VERIFY_TOKEN = os.getenv("VERIFY_TOKEN", default=None)
 PHONE_NUMBER_ID_PROVIDER = os.getenv("NUMBER_ID_PROVIDER", default="104091002619024")
 FACEBOOK_API_URL = 'https://graph.facebook.com/v16.0'
 WHATS_API_URL = 'https://api.whatsapp.com/v3'
+TIMER_FOR_SEARCH_OPEN_SESSION_SEC = 180
 MAX_NOT_RESPONDING_TIMEOUT_MINUETS = 5
 TIME_PASS_FROM_LAST_SESSION = 2
 if None in [TOKEN, VERIFY_TOKEN]:
@@ -451,7 +452,7 @@ def check_for_afk_sessions(db):
 def schedule_search_for_inactive_sessions():
     print("Search for opening session..")
     db_conn = next(get_db())
-    threading.Timer(5, schedule_search_for_inactive_sessions).start()
+    threading.Timer(TIMER_FOR_SEARCH_OPEN_SESSION_SEC, schedule_search_for_inactive_sessions).start()
     check_for_afk_sessions(db_conn)
 
 
