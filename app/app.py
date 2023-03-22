@@ -1,8 +1,10 @@
 import os
+import pytz
 import uvicorn
 import requests
 from typing import List
 from Model.models import *
+from datetime import datetime
 from json import JSONDecodeError
 from sqlalchemy.orm import Session
 from requests.structures import CaseInsensitiveDict
@@ -33,13 +35,14 @@ conversation = {
                 "כדי לפתוח קריאה נעבור תהליך זיהוי קצר,"
                 " בכל שלב תוכלו לרשום לנו יציאה והמערכת תתחיל את השיחה מחדש"
 }
+WORKING_HOURS = (8, 17)
 non_working_hours_msg = """שלום, השירות פעיל בימים א'-ה' בשעות 08:00- 17:30. 
 ניתן לפתוח קריאה באתר דרך הקישור הבא 
  026430010.co.il
 ונחזור אליכם בשעות הפעילות
 
 בברכה,
-מוזס מחשבים."""
+מוזס מחשבים."""
 # Define a list of predefined conversation steps
 conversation_steps = ConversationSession.conversation_steps_in_class
 
@@ -111,33 +114,10 @@ async def get_users(db=Depends(get_db)):
     return {"Results": result}
 
 
-@app.post("/webhook_old")
-async def handle_message(request: Request, db: Session = Depends(get_db)):
-    try:
-        print("handle_message")
-        global sender
-        message = None
-        payload_as_json = None
-        payload_as_json = await request.json()
-        payload_as_json = payload_as_json['entry'][0]['changes'][0]['value']['messages'][0]
-        sender = payload_as_json["from"]
-        text = payload_as_json['text']['body']
-        if after_working_hours():
-            print("after_working_hours")
-            send_response_using_whatsapp_api(non_working_hours_msg)
-            return Response(content=non_working_hours_msg)
-            # return non_working_hours_msg, 200
-        message = process_bot_response(db, text)
-        return Response(content=message)
-    except JSONDecodeError:
-        message = "Received data is not a valid JSON"
-    return Response(content=message)
-
-
 @app.post("/webhook")
 async def handle_message_with_request_scheme(data: WebhookRequestData, db: Session = Depends(get_db)):
     try:
-        print("handle_message_with_request_scheme")
+        print("handle_message webhook")
         global sender
         message = "ok"
         if data.object == "whatsapp_business_account":
@@ -161,13 +141,14 @@ async def handle_message_with_request_scheme(data: WebhookRequestData, db: Sessi
                         sender = event['value']['messages'][0]['from']
                         message = process_bot_response(db, text, button_selected=True)
                     elif type == "interactive":
+                        print("interactive")
                         text = event['value']['messages'][0]['interactive']['button_reply']["title"]
                         sender = event['value']['messages'][0]['from']
                         message = process_bot_response(db, text, button_selected=True)
                         res = f"Json: '{event['value']['messages'][0]}'"
                         print(res)
                     else:
-                        print(f"Type {type} is not valid")
+                        print(f"Type '{type}' is not valid")
                         message = f"Json: '{event['value']['messages'][0]}'"
                         print(message)
                     return Response(content=message)
@@ -175,9 +156,10 @@ async def handle_message_with_request_scheme(data: WebhookRequestData, db: Sessi
             print(data.object)
         return Response(content=message)
     except JSONDecodeError:
-        message = "Received data is not a valid JSON"
+        message = "Received data is not a valid JSON (JSONDecodeError)"
     except Exception as ex:
         print(f"Exception: '{ex}'")
+        message = str(ex)
     return Response(content=message)
 
 
@@ -212,6 +194,10 @@ def check_for_timeout(db, sender):
 
 
 def process_bot_response(db, user_msg: str, button_selected=False) -> str:
+    if after_working_hours():
+        print("after_working_hours")
+        send_response_using_whatsapp_api(non_working_hours_msg)
+        return non_working_hours_msg
     log = ""
     if user_msg in ["אדמין"]:
         created_issues_history = db.query(Issues).filter(Issues.issue_sent_status == True).all()
@@ -252,7 +238,8 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
         if user_msg.lower() in ["יציאה"]:
             session.set_status(db, False)
             print("Your session end")
-            return send_response_using_whatsapp_api("השיחה הסתיימה, על מנת לחדש את השיחה אנא שלח הודעה")
+            send_response_using_whatsapp_api("השיחה הסתיימה, על מנת לחדש את השיחה אנא שלח הודעה")
+            return "השיחה הסתיימה, על מנת לחדש את השיחה אנא שלח הודעה"
         current_conversation_step = str(session.call_flow_location)
         print(f"Current step is: {current_conversation_step}")
         is_answer_valid, message_in_error = session.validate_and_set_answer(db, current_conversation_step, user_msg)
@@ -304,7 +291,7 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                 session.set_status(db, False)
                 return "Conversation ends!"
             else:
-                raise Exception("Unknow step after check for end")
+                raise Exception("Unknown step after check for end conversation")
         else:
             print("Try again")
             send_response_using_whatsapp_api(message_in_error)
@@ -413,6 +400,24 @@ def check_if_session_exist(db, user_id):
 
 
 def after_working_hours():
+    # Get Day Number from weekday
+    week_num = datetime.today().weekday()
+
+    if week_num > 5:
+        print("Today is a Weekend")
+        return True
+    else:
+        # 5 Sat, 6 Sun
+        print("Today is a Weekend")
+
+    current_time = datetime.now(pytz.timezone('Israel'))
+    if current_time.hour > WORKING_HOURS[1] or current_time.hour < WORKING_HOURS[0]:
+        print("Now is NOT working hours")
+        return True
+    else:
+        # 5 Sat, 6 Sun
+        print("Now is working hours")
+
     return False
 
 
