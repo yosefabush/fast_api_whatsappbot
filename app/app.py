@@ -238,6 +238,7 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
         print(f"{steps_message}")
 
         send_response_using_whatsapp_api(conversation["Greeting"])
+        # Handling session after restart dou to max login attempts
         if session is None:
             session = ConversationSession(user_id=sender, db=db)
             db.add(session)
@@ -255,27 +256,22 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                 next_step_conversation_after_increment = str(session.call_flow_location)
             if current_conversation_step == "2":
                 send_response_using_whatsapp_api("שלום " + session.get_conversation_step_json("1") + "!")
-                # send_response_using_whatsapp_api(conversation_steps[next_step_conversation_after_increment])
-                # regarding step 3
-                # choices = session.get_options_subjects(db)
-                choices = session.get_all_cliten_product_and_save_db_subjects2(db)
+                # show buttons for step 4
+                choices = session.get_all_client_product_and_save_db_subjects2(db)
                 return send_interactive_response(conversation_steps[next_step_conversation_after_increment], choices)
             elif current_conversation_step in ["3", "4"]:
                 if button_selected:
                     print(f"drop menu: {user_msg}")
                     session.increment_call_flow(db)
                     next_step_conversation_after_increment = str(session.call_flow_location)
-                    if next_step_conversation_after_increment != "3":
-                        # prevent two prints
-                        send_response_using_whatsapp_api(conversation_steps[next_step_conversation_after_increment])
-                        return conversation_steps[next_step_conversation_after_increment]
-                    print("tese erea")
                 if current_conversation_step == "3":
-                    # regarding step 4
+                    # show buttons for step 4
                     products = session.get_products(db, user_msg)
-                    # send_interactive_response(conversation_steps[next_step_conversation_after_increment],list(products.values()))
                     return send_interactive_response(conversation_steps[next_step_conversation_after_increment], products)
                     # return "Choose product..."
+                else:
+                    send_response_using_whatsapp_api(conversation_steps[next_step_conversation_after_increment])
+                    return conversation_steps[next_step_conversation_after_increment]
             else:
                 send_response_using_whatsapp_api(conversation_steps[next_step_conversation_after_increment])
                 # regarding last step
@@ -302,7 +298,7 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                 session.set_status(db, False)
                 return "Conversation ends!"
             else:
-                return conversation_steps[current_conversation_step]
+                raise Exception("Unknow step after check for end")
         else:
             print("Try again")
             send_response_using_whatsapp_api(message_in_error)
@@ -383,7 +379,7 @@ def send_interactive_response(message, chooses):
             return f"Failed send message, response: '{response}'"
         print(f"Message sent successfully to :'{sender}'!")
         # return f"Interactive sent successfully to :'{sender}'!"
-        return message
+        return f"{message}\n{chooses}"
     except Exception as EX:
         print(f"Error send whatsapp : '{EX}'")
         raise EX

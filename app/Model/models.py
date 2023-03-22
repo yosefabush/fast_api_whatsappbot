@@ -177,7 +177,7 @@ class ConversationSession(Base):
             elif case == 3:
                 print(f"check if chosen '{answer}' valid")
                 # choises = {a.name: a.id for a in db.query(Items).all()}
-                #choises = moses_api.get_subjects_by_user_and_password(self.password.split(";")[1])
+                # choises = moses_api.get_subjects_by_user_and_password(self.password.split(";")[1])
                 # choises = self.get_options_subjects(db)
                 # group = list(dict.fromkeys([name["ProductSherotName"].split("-")[0].strip() for name in choises["table"]]))
                 # if answer not in group:
@@ -249,8 +249,9 @@ class ConversationSession(Base):
             return True, result
         else:
             if self.call_flow_location in [2]:
-                result = "סיסמא שגויה אנא נסה שוב"
                 self.login_attempts += 1
+                hint = f"נסיון {self.login_attempts} מתוך {self.MAX_LOGING_ATTEMPTS}"
+                result = f"סיסמא שגויה אנא נסה שוב ({hint})"
                 db.commit()
                 if self.login_attempts == self.MAX_LOGING_ATTEMPTS:
                     print("restart session")
@@ -261,19 +262,19 @@ class ConversationSession(Base):
                     result = "בשל ריבוי ניסיונות החיבור נכשל, על מנת להמשיך שלח הודעה כדי להתחיל הזדהות מחדש"
                 else:
                     print(f"login failure number '{self.login_attempts}'")
+            elif self.call_flow_location == 1:
+                result = "שם משתמש שגוי אנא נסה שוב"
+            elif self.call_flow_location == 5:
+                result = "מספר הטלפון שהוקש אינו חוקי, אנא נסה שוב"
             else:
-                if self.call_flow_location == 1:
-                    result = "שם משתמש שגוי אנא נסה שוב"
-                else:
-                    result = f" ערך לא חוקי '{response}' "
-                print(f"Not valid response {response} for {self.conversation_steps_in_class[str(step)]}")
+                result = f" ערך לא חוקי '{response}' "
+            print(f"Not valid response {response} for {self.conversation_steps_in_class[str(step)]}")
             return False, result
 
     def set_status(self, db, status):
         session = db.query(ConversationSession).filter(ConversationSession.id == self.id).first()
         session.session_active = status
         db.commit()
-        # self.session_active = status
 
     def get_options_subjects(self, db):
         # [a.name for a in db.query(Items.name).all()]
@@ -297,17 +298,7 @@ class ConversationSession(Base):
                 print("else")
         return list(distinct_values.keys())
 
-        # as_list = list()
-        # for a in choices:
-        #     print(a)
-        #     as_list.append({a["NumComp"]: f"{a['ProductSherotName']},{a['NumComp']}"})
-        # res = list()
-        # for a in as_list:
-        #     for v in a.values():
-        #         res.append(v)
-        # return res
-
-    def get_all_cliten_product_and_save_db_subjects2(self, db):
+    def get_all_client_product_and_save_db_subjects2(self, db):
         choices = moses_api.get_sorted_product_by_user_and_password(self.password.split(";")[1])
         if choices is None:
             raise Exception("No options found")
@@ -315,31 +306,12 @@ class ConversationSession(Base):
         self.all_client_products_in_service = json.dumps(choices)
         db.commit()
         print("saved to DB!")
-        # distinct_product_values = dict()
-        # for row in choices:
-        #     if row['ProductSherotName'] not in distinct_product_values.keys():
-        #         distinct_product_values[row['ProductSherotName']] = [row['NumComp']]
-        #         print("new product")
-        #     else:
-        #         distinct_product_values[row['ProductSherotName']].append(row['NumComp'])
-        #         print("exist product")
         return list(choices.keys())
 
     def get_products(self, db, msg):
         choices = json.loads(self.all_client_products_in_service)
         distinct_values = choices.get(msg, None)
-        # distinct_values = dict()
-        # for row in choices:
-        #     clean_name = row['ProductSherotName'].split("-")[0].get_products()
-        #     if clean_name not in distinct_values.keys():
-        #         distinct_values[clean_name] = [row['NumComp']]
-        #         print("new")
-        #     else:
-        #         distinct_values[clean_name].append(row['NumComp'])
-        #         print("else")
         return distinct_values
-        # products = moses_api.get_product_number_by_user(self.user_id, self.password)
-        # return products
 
     def get_all_responses(self):
         return self.convers_step_resp
