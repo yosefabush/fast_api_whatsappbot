@@ -29,7 +29,9 @@ headers["Accept"] = "application/json"
 headers["Authorization"] = f"Bearer {TOKEN}"
 session_open = False
 conversation = {
-    "Greeting": "ברוך הבא לבוט של מוזס!"
+    "Greeting": "היי ברוך הבא לבוט של מוזס!\nתודה שפנית אלינו 😊\n"
+                "כדי לפתוח קריאה נעבור תהליך זיהוי קצר,"
+                " בכל שלב תוכלו לרשום לנו יציאה והמערכת תתחיל את השיחה מחדש"
 }
 non_working_hours_msg = """שלום, השירות פעיל בימים א'-ה' בשעות 08:00- 17:30. 
 ניתן לפתוח קריאה באתר דרך הקישור הבא 
@@ -247,6 +249,10 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
         send_response_using_whatsapp_api(conversation_steps[str(session.call_flow_location)])
         return conversation_steps[str(session.call_flow_location)]
     else:
+        if user_msg.lower() in ["יציאה"]:
+            session.set_status(db, False)
+            print("Your session end")
+            return send_response_using_whatsapp_api("השיחה הסתיימה, על מנת לחדש את השיחה אנא שלח הודעה")
         current_conversation_step = str(session.call_flow_location)
         print(f"Current step is: {current_conversation_step}")
         is_answer_valid, message_in_error = session.validate_and_set_answer(db, current_conversation_step, user_msg)
