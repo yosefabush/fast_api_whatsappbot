@@ -2,6 +2,7 @@ import os
 import pytz
 import uvicorn
 import requests
+import threading
 from typing import List
 from Model.models import *
 from datetime import datetime
@@ -19,6 +20,7 @@ VERIFY_TOKEN = os.getenv("VERIFY_TOKEN", default=None)
 PHONE_NUMBER_ID_PROVIDER = os.getenv("NUMBER_ID_PROVIDER", default="104091002619024")
 FACEBOOK_API_URL = 'https://graph.facebook.com/v16.0'
 WHATS_API_URL = 'https://api.whatsapp.com/v3'
+MAX_NOT_RESPONDING_TIMEOUT_MINUETS = 5
 TIME_PASS_FROM_LAST_SESSION = 2
 if None in [TOKEN, VERIFY_TOKEN]:
     raise Exception(f"Error on env var '{TOKEN, VERIFY_TOKEN}' ")
@@ -35,7 +37,7 @@ conversation = {
                 "כדי לפתוח קריאה נעבור תהליך זיהוי קצר,"
                 " בכל שלב תוכלו לרשום לנו יציאה והמערכת תתחיל את השיחה מחדש"
 }
-WORKING_HOURS = (8, 17)
+WORKING_HOURS_START_END = (8, 17)
 non_working_hours_msg = """שלום, השירות פעיל בימים א'-ה' בשעות 08:00- 17:30. 
 ניתן לפתוח קריאה באתר דרך הקישור הבא 
  026430010.co.il
@@ -208,7 +210,9 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
     if user_msg.lower() in ["reset"]:
         conversation_history = db.query(ConversationSession).filter(ConversationSession.session_active == True).all()
         for session in conversation_history:
-            session.set_status(db, False)
+            # session.set_status(db, False)
+            session.session_active = False
+            db.commit()
         print("All conversation were reset")
         return "All conversation were reset"
     next_step_conversation_after_increment = ""
@@ -236,7 +240,9 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
         return conversation_steps[str(session.call_flow_location)]
     else:
         if user_msg.lower() in ["יציאה"]:
-            session.set_status(db, False)
+            # session.set_status(db, False)
+            session.session_active = False
+            db.commit()
             print("Your session end")
             send_response_using_whatsapp_api("השיחה הסתיימה, על מנת לחדש את השיחה אנא שלח הודעה")
             return "השיחה הסתיימה, על מנת לחדש את השיחה אנא שלח הודעה"
@@ -250,8 +256,8 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
             if current_conversation_step == "2":
                 send_response_using_whatsapp_api("שלום " + session.get_conversation_step_json("1") + "!")
                 # show buttons for step 4
-                choices = session.get_all_client_product_and_save_db_subjects2(db)
-                return send_interactive_response(conversation_steps[next_step_conversation_after_increment], choices)
+                subject_groups = session.get_all_client_product_and_save_db_subjects2(db)
+                return send_interactive_response(conversation_steps[next_step_conversation_after_increment], subject_groups)
             elif current_conversation_step in ["3", "4"]:
                 if button_selected:
                     print(f"drop menu: {user_msg}")
@@ -260,7 +266,12 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                 if current_conversation_step == "3":
                     # show buttons for step 4
                     products = session.get_products(db, user_msg)
-                    return send_interactive_response(conversation_steps[next_step_conversation_after_increment], products)
+                    products_2 = list()
+                    for s in products:
+                        for k, v in s.items():
+                            products_2.append(k)
+                    return send_interactive_response(conversation_steps[next_step_conversation_after_increment],
+                                                     products_2)
                     # return "Choose product..."
                 else:
                     send_response_using_whatsapp_api(conversation_steps[next_step_conversation_after_increment])
@@ -281,14 +292,19 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                 print(f"Issue successfully created! {new_issue}")
                 summary = json.loads(session.convers_step_resp)
                 client_id = session.password.split(";")[1]
-                data = {"technicianName": f"{summary['5']}", "kria": f"{summary['6']}", "clientCode": f"{client_id}"}
+                data = {"technicianName": f"{summary['5']}-{summary['1']}", "kria": f"{summary['6']}", "clientCode": f"{client_id}"}
+                if len(data["technicianName"]) > 20:
+                    print("Set technicianName only phone number without name")
+                    data = {"technicianName": f"{summary['5']}", "kria": f"{summary['6']}", "clientCode": f"{client_id}"}
                 if moses_api.create_kria(data):
                     print(f"Kria successfully created! {data}")
                     new_issue.set_issue_status(db, True)
                 else:
                     print(f"Failed to create Kria {data}")
                 print("Conversation ends!")
-                session.set_status(db, False)
+                # session.set_status(db, False)
+                session.session_active = False
+                db.commit()
                 return "Conversation ends!"
             else:
                 raise Exception("Unknown step after check for end conversation")
@@ -298,7 +314,7 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
             return conversation_steps[current_conversation_step]
 
 
-def send_response_using_whatsapp_api(message, debug=False):
+def send_response_using_whatsapp_api(message, debug=False, _specific_sendr=None):
     """Send a message using the WhatsApp Business API."""
     try:
         print(f"Sending message: '{message}' ")
@@ -307,7 +323,7 @@ def send_response_using_whatsapp_api(message, debug=False):
         payload = {
             "messaging_product": "whatsapp",
             "recipient_type": "individual",
-            "to": f"{sender}",
+            "to": f"{sender if _specific_sendr is None else _specific_sendr}",
             "type": "text",
             "text": {
                 "preview_url": False,
@@ -315,26 +331,15 @@ def send_response_using_whatsapp_api(message, debug=False):
             }
         }
 
-        pay = {
-            "messaging_product": "whatsapp",
-            "to": f"{sender}",
-            "type": "template",
-            "template": {
-                "name": "hello_world",
-                "language": {
-                    "code": "en_US"
-                }
-            }
-        }
         if debug:
             print(f"Payload '{payload}' ")
             print(f"Headers '{headers}' ")
             print(f"URL '{url}' ")
-        response = requests.post(url, json=payload, headers=headers, verify=False)
+        response = requests.post(url, json=payload, headers=headers)
         if not response.ok:
-            return f"Failed send message, response: '{response}'"
-        print(f"Message sent successfully to :'{sender}'!")
-        return f"Message sent successfully to :'{sender}'!"
+            raise Exception(f"Error on sending message, json: {payload}")
+        print(f"Message sent successfully to :'{sender if _specific_sendr is None else _specific_sendr}'!")
+        return f"Message sent successfully to :'{sender if _specific_sendr is None else _specific_sendr}'!"
     except Exception as EX:
         print(f"Error send whatsapp : '{EX}'")
         raise EX
@@ -401,6 +406,7 @@ def check_if_session_exist(db, user_id):
 
 def after_working_hours():
     # Get Day Number from weekday
+    # return False
     week_num = datetime.today().weekday()
 
     if week_num > 5:
@@ -411,7 +417,7 @@ def after_working_hours():
         print("Today is a Weekend")
 
     current_time = datetime.now(pytz.timezone('Israel'))
-    if current_time.hour > WORKING_HOURS[1] or current_time.hour < WORKING_HOURS[0]:
+    if current_time.hour > WORKING_HOURS_START_END[1] or current_time.hour < WORKING_HOURS_START_END[0]:
         print("Now is NOT working hours")
         return True
     else:
@@ -421,15 +427,37 @@ def after_working_hours():
     return False
 
 
+def check_for_afk_sessions(db):
+    results = db.query(ConversationSession).filter(ConversationSession.session_active == True).all()
+    print(f"Active session found: '{results}'")
+    for open_session in results:
+        now = datetime.now()
+        diff_time = now - open_session.start_data
+        seconds_in_day = 24 * 60 * 60
+        minutes, second = divmod(diff_time.days * seconds_in_day + diff_time.seconds, 60)
+        if minutes > MAX_NOT_RESPONDING_TIMEOUT_MINUETS:
+            try:
+                print(f"end session phone: '{open_session.user_id}' id {open_session.id}")
+                send_response_using_whatsapp_api("השיחה הופסקה בשל אי שימוש, על מנת להתחיל שיחה חדשה אנא שלח הודעה",
+                                                 _specific_sendr=open_session.user_id)
+                # conversation.set_status()
+                open_session.session_active = False
+                db.commit()
+                print("session Delete!")
+            except Exception as er:
+                print(er)
+
+
+def schedule_search_for_inactive_sessions():
+    print("Search for opening session..")
+    db_conn = next(get_db())
+    threading.Timer(5, schedule_search_for_inactive_sessions).start()
+    check_for_afk_sessions(db_conn)
+
+
 if __name__ == "__main__":
     print("From main")
-    # uvicorn.run(app,
-    #             host="0.0.0.0",
-    #             port=int(PORT),
-    #             ssl_keyfile=r"C:\Certificate\key.pem",
-    #             ssl_certfile=r"C:\Certificate\cert.pem",
-    #             log_level="info")
-
+    schedule_search_for_inactive_sessions()
     uvicorn.run(app,
                 host="0.0.0.0",
                 port=int(PORT),

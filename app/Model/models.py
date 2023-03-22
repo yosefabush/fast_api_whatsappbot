@@ -205,7 +205,16 @@ class ConversationSession(Base):
             elif case == 4:
                 print(f"Check if product '{answer}' exist")
                 choices = json.loads(self.all_client_products_in_service)
-                print(f"Products {list(choices.values())}")
+                res = choices.get(self.get_conversation_step_json("3"), None)
+                found = False
+                for d in res:
+                    an = d.get(answer, None)
+                    if an is not None:
+                        print(an[0])
+                        found = True
+                        break
+                return found
+                # print(f"Products {list(choices.values())}")
                 # products = moses_api.get_product_number_by_user(self.user_id, self.password)
                 # products = self.get_products(db)
                 # if answer not in list(products.values()):
@@ -231,12 +240,16 @@ class ConversationSession(Base):
     def validate_and_set_answer(self, db, step, response):
         step = int(step)
         if self.validation_switch_step(db, step, response):
-            # if step == 4:
-            #     item_id = db.query(Items.id).filter(Items.name == response).first()
-            #     response = item_id[0]
-            #     self.set_conversion_step(step, response, db)
-            #
-            if step == 5:
+            if step == 4:
+                choices = json.loads(self.all_client_products_in_service)
+                res = choices.get(self.get_conversation_step_json("3"), None)
+                for d in res:
+                    an = d.get(response, None)
+                    if an is not None:
+                        print(an[0])
+                        self.set_conversion_step(step, an[0], db)
+                        break
+            elif step == 5:
                 if response == "1":
                     # user_id is phone number in conversation
                     self.set_conversion_step(step, self.user_id, db)
