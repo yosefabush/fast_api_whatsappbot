@@ -146,7 +146,12 @@ async def handle_message_with_request_scheme(data: WebhookRequestData, db: Sessi
                         message = process_bot_response(db, text, button_selected=True)
                     elif type == "interactive":
                         print("interactive")
-                        text = event['value']['messages'][0]['interactive']['button_reply']["title"]
+                        if event['value']['messages'][0]['interactive']["type"] == "button_reply":
+                            text = event['value']['messages'][0]['interactive']['button_reply']["title"]
+                        elif event['value']['messages'][0]['interactive']["type"] == "list_reply":
+                            text = event['value']['messages'][0]['interactive']['list_reply']['title']
+                        else:
+                            raise Exception("unknown type {event['value']['messages'][0]['interactive']}")
                         sender = event['value']['messages'][0]['from']
                         message = process_bot_response(db, text, button_selected=True)
                         res = f"Json: '{event['value']['messages'][0]}'"
@@ -361,7 +366,6 @@ def send_interactive_response(message, chooses):
     try:
         print(f"Sending interactive message: '{chooses}' ")
         url = f"{FACEBOOK_API_URL}/{PHONE_NUMBER_ID_PROVIDER}/messages"
-        payload = None
         buttons = [{
             "type": "reply",
             "reply": {
@@ -369,7 +373,7 @@ def send_interactive_response(message, chooses):
                 "title": msg
             }} for i, msg in enumerate(chooses)]
 
-        if len(chooses) <= 3:
+        if False:
             payload = {
                 "messaging_product": "whatsapp",
                 "recipient_type": "individual",
@@ -387,7 +391,7 @@ def send_interactive_response(message, chooses):
             }
         else:
             if len(chooses) > 10:
-                print("More then 10, use only 10 first")
+                print("More then 10, use only 10 first!!")
                 buttons = [{
                     "id": i,
                     "title": msg,
