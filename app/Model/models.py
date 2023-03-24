@@ -4,7 +4,7 @@ import datetime
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Boolean, Column, Integer, String, TIMESTAMP
+from sqlalchemy import Boolean, Column, Integer, String, TIMESTAMP, Text
 
 from Model import moses_api
 
@@ -37,7 +37,7 @@ class Issues(Base):
     __tablename__ = "issues"
     id = Column(Integer, primary_key=True, index=True)
     conversation_id = Column(String(255), unique=False, index=True)
-    item_id = Column(Integer)
+    item_id = Column(Text)
     issue_data = Column(String(255), unique=False)
     issue_sent_status = Column(Boolean, default=False)
 
@@ -52,9 +52,9 @@ class ConversationSession(Base):
     conversation_steps_in_class = {
         "1": "אנא הזן שם משתמש",
         "2": "אנא הזן סיסמא",
-        "3": "תודה שפנית אלינו, פרטיך נקלטו במערכת, באיזה נושא נוכל להעניק לך שירות?",
+        "3": "תודה שפנית אלינו, פרטיך נקלטו במערכת, באיזה נושא נוכל להעניק לך שירות?\n(לפתיחת קריאה ללא נושא רשום 'אחר')",
         "4": "אנא הזן קוד מוצר",
-        "5": "על מנת לחזור למספר ממנו שלחת את ההודעה הקש 1 אחרת את הקש את המספר הרצוי ",
+        "5": "על מנת לחזור למספר ממנו שלחת את ההודעה הקש 1 אחרת את הקש את המספר הרצוי",
         "6": "נא רשום בקצרה את תיאור הפנייה",
         "7": "פנייתך התקבלה, נציג טלפוני יחזור אליך בהקדם.\nאנא הישאר זמין\nכדי לפתוח שיחה חדשה ניתן לשלוח הודעה נוספת\nתודה ולהתראות",
     }
@@ -66,7 +66,7 @@ class ConversationSession(Base):
     password = Column(String(255), unique=False, index=True)
     login_attempts = Column(Integer)
     call_flow_location = Column(Integer)
-    all_client_products_in_service = Column(String(2000), unique=False)
+    all_client_products_in_service = Column(Text)
     start_data = Column(TIMESTAMP(timezone=False), nullable=False, default=datetime.datetime.now())
     # start_data = Column('timestamp', TIMESTAMP(timezone=False), nullable=False, default=datetime.datetime.now())
     session_active = Column(Boolean, default=True)
@@ -150,7 +150,7 @@ class ConversationSession(Base):
     #             print(f"NO NEED TO VALIDATE ISSUE")
     #     return True
 
-    def validation_switch_step(self, db, case, answer):
+    def validation_switch_step(self, db, case, answer, select_by_button):
         try:
             if case == 1:
                 print(f"Check if user name '{answer}' valid")
@@ -176,34 +176,17 @@ class ConversationSession(Base):
                 db.commit()
             elif case == 3:
                 print(f"check if chosen '{answer}' valid")
-                # choises = {a.name: a.id for a in db.query(Items).all()}
-                # choises = moses_api.get_subjects_by_user_and_password(self.password.split(";")[1])
-                # choises = self.get_options_subjects(db)
-                # group = list(dict.fromkeys([name["ProductSherotName"].split("-")[0].strip() for name in choises["table"]]))
-                # if answer not in group:
-                #     return False
                 choices = json.loads(self.all_client_products_in_service)
                 print(f"subjects {list(choices.keys())}")
-                # res = [r for r in choises if answer == r["NumComp"]]
-                # distinct_values = dict()
-                # for row in choices:
-                #     clean_name = row['ProductSherotName'].split("-")[0].strip()
-                #     if clean_name not in distinct_values.keys():
-                #         distinct_values[clean_name] = [row['NumComp']]
-                #         print("new")
-                #     else:
-                #         distinct_values[clean_name].append(row['NumComp'])
-                #         print("else")
-                # res = False if answer not in distinct_values.keys() else True
-                # if not res:
-                #     return False
-                # db.commit()
-                # res = db.query(Items.id).filter(Items.name == answer).first()
-                # if len(res) == 0:
-                #     print(f"Item not exist {answer}")
-                #     return False
+                if answer == "אחר":
+                    print("found אחר")
+                    return True
+                if not select_by_button:
+                    return False
             elif case == 4:
                 print(f"Check if product '{answer}' exist")
+                if not select_by_button:
+                    return False
                 choices = json.loads(self.all_client_products_in_service)
                 res = choices.get(self.get_conversation_step_json("3"), None)
                 found = False
@@ -214,11 +197,6 @@ class ConversationSession(Base):
                         found = True
                         break
                 return found
-                # print(f"Products {list(choices.values())}")
-                # products = moses_api.get_product_number_by_user(self.user_id, self.password)
-                # products = self.get_products(db)
-                # if answer not in list(products.values()):
-                #     return False
             elif case == 5:
                 print(f"Check if phone number '{answer}' is valid")
                 if answer != "1":
@@ -237,10 +215,15 @@ class ConversationSession(Base):
             print(f"step {case} {ex}")
             return False
 
-    def validate_and_set_answer(self, db, step, response):
+    def validate_and_set_answer(self, db, step, response,is_button_selected):
         step = int(step)
-        if self.validation_switch_step(db, step, response):
-            if step == 4:
+        if self.validation_switch_step(db, step, response,is_button_selected):
+            if step == 3 and response == "אחר":
+                self.set_conversion_step(step, "None", db)
+                self.set_conversion_step(4, "None", db)
+                self.call_flow_location = 4
+                db.commit()
+            elif step == 4:
                 choices = json.loads(self.all_client_products_in_service)
                 res = choices.get(self.get_conversation_step_json("3"), None)
                 for d in res:
@@ -261,7 +244,9 @@ class ConversationSession(Base):
             result = f"{self.conversation_steps_in_class[str(step)]}: {response}"
             return True, result
         else:
-            if self.call_flow_location in [2]:
+            if self.call_flow_location == 1:
+                result = "שם משתמש שגוי אנא נסה שוב"
+            elif self.call_flow_location == 2:
                 self.login_attempts += 1
                 hint = f"נסיון {self.login_attempts} מתוך {self.MAX_LOGING_ATTEMPTS}"
                 result = f"סיסמא שגויה אנא נסה שוב ({hint})"
@@ -275,8 +260,8 @@ class ConversationSession(Base):
                     result = "בשל ריבוי ניסיונות החיבור נכשל, על מנת להמשיך שלח הודעה כדי להתחיל הזדהות מחדש"
                 else:
                     print(f"login failure number '{self.login_attempts}'")
-            elif self.call_flow_location == 1:
-                result = "שם משתמש שגוי אנא נסה שוב"
+            elif self.call_flow_location in [3, 4]:
+                result = "אנא בחר פריטים מהרשימה"
             elif self.call_flow_location == 5:
                 result = "מספר הטלפון שהוקש אינו חוקי, אנא נסה שוב"
             else:

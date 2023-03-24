@@ -68,12 +68,24 @@ def get_sorted_product_by_user_and_password(client_id):
         distinct_product_values = dict()
         for row in data["table"]:
             if row['ProductSherotName'] not in distinct_product_values.keys():
-                #distinct_product_values[row['ProductSherotName']] = [row['NumComp']]
-                distinct_product_values[row['ProductSherotName']] = [{f"{row['NumComp']}-{row['Description']}":[row['NumComp']]}]
+                # distinct_product_values[row['ProductSherotName']] = [row['NumComp']]
+                # distinct_product_values[row['ProductSherotName']] = [{f"{row['NumComp']}-{row['Description']}":[row['NumComp']]}]
+                if row["NumComp"] != "":
+                    distinct_product_values[row['ProductSherotName']] = [
+                        {f"{row['NumComp']}-{row['Description']}": [row['NumComp']]}]
+                else:
+                    distinct_product_values[row['ProductSherotName']] = [
+                        {f"{row['Description']}": [row['Description']]}]
                 print("new product")
             else:
                 # distinct_product_values[row['ProductSherotName']].append(row['NumComp'])
-                distinct_product_values[row['ProductSherotName']].append({f"{row['NumComp']}-{row['Description']}":[row['NumComp']]})
+                # distinct_product_values[row['ProductSherotName']].append({f"{row['NumComp']}-{row['Description']}":[row['NumComp']]})
+                if row["NumComp"] != "":
+                    distinct_product_values[row['ProductSherotName']].append(
+                        {f"{row['NumComp']}-{row['Description']}": [row['NumComp']]})
+                else:
+                    distinct_product_values[row['ProductSherotName']].append(
+                        {f"{row['Description']}": [row['Description']]})
                 print("exist product")
         return distinct_product_values
     return None

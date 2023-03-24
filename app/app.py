@@ -20,7 +20,7 @@ VERIFY_TOKEN = os.getenv("VERIFY_TOKEN", default=None)
 PHONE_NUMBER_ID_PROVIDER = os.getenv("NUMBER_ID_PROVIDER", default="104091002619024")
 FACEBOOK_API_URL = 'https://graph.facebook.com/v16.0'
 WHATS_API_URL = 'https://api.whatsapp.com/v3'
-TIMER_FOR_SEARCH_OPEN_SESSION_SEC = 180
+TIMER_FOR_SEARCH_OPEN_SESSION_SEC = 300
 MAX_NOT_RESPONDING_TIMEOUT_MINUETS = 5
 TIME_PASS_FROM_LAST_SESSION = 2
 if None in [TOKEN, VERIFY_TOKEN]:
@@ -63,6 +63,7 @@ class WebhookRequestData(BaseModel):
 def startup():
     print("startup DB create_all")
     Base.metadata.create_all(bind=engine)
+    schedule_search_for_inactive_sessions()
 
 
 @app.on_event("shutdown")
@@ -249,7 +250,7 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
             return "השיחה הסתיימה, על מנת לחדש את השיחה אנא שלח הודעה"
         current_conversation_step = str(session.call_flow_location)
         print(f"Current step is: {current_conversation_step}")
-        is_answer_valid, message_in_error = session.validate_and_set_answer(db, current_conversation_step, user_msg)
+        is_answer_valid, message_in_error = session.validate_and_set_answer(db, current_conversation_step, user_msg,button_selected)
         if is_answer_valid:
             if not button_selected:
                 session.increment_call_flow(db)
@@ -258,7 +259,8 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                 send_response_using_whatsapp_api("שלום " + session.get_conversation_step_json("1") + "!")
                 # show buttons for step 4
                 subject_groups = session.get_all_client_product_and_save_db_subjects2(db)
-                return send_interactive_response(conversation_steps[next_step_conversation_after_increment], subject_groups)
+                return send_interactive_response(conversation_steps[next_step_conversation_after_increment],
+                                                 subject_groups)
             elif current_conversation_step in ["3", "4"]:
                 if button_selected:
                     print(f"drop menu: {user_msg}")
@@ -267,12 +269,17 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                 if current_conversation_step == "3":
                     # show buttons for step 4
                     products = session.get_products(db, user_msg)
-                    products_2 = list()
-                    for s in products:
-                        for k, v in s.items():
-                            products_2.append(k)
-                    return send_interactive_response(conversation_steps[next_step_conversation_after_increment],
-                                                     products_2)
+                    if products:
+                        products_2 = list()
+                        for s in products:
+                            for k, v in s.items():
+                                products_2.append(k)
+                        return send_interactive_response(conversation_steps[next_step_conversation_after_increment],
+                                                         products_2)
+                    else:
+                        print("product return empty")
+                        send_response_using_whatsapp_api(conversation_steps[next_step_conversation_after_increment])
+                        return conversation_steps[next_step_conversation_after_increment]
                     # return "Choose product..."
                 else:
                     send_response_using_whatsapp_api(conversation_steps[next_step_conversation_after_increment])
@@ -285,7 +292,7 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
             # Check if conversation reach to last step
             if next_step_conversation_after_increment == str(len(conversation_steps)):  # 7
                 new_issue = Issues(conversation_id=session.id,
-                                   item_id=int(session.get_conversation_step_json("4")),
+                                   item_id=session.get_conversation_step_json("4"),
                                    issue_data=session.get_conversation_step_json(str(int(current_conversation_step)))
                                    )
                 db.add(new_issue)
@@ -293,10 +300,14 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                 print(f"Issue successfully created! {new_issue}")
                 summary = json.loads(session.convers_step_resp)
                 client_id = session.password.split(";")[1]
-                data = {"technicianName": f"{summary['5']}-{summary['1']}", "kria": f"{summary['6']}", "clientCode": f"{client_id}"}
+                data = {"technicianName": f"{summary['5'].replace('972', '0')}-{summary['1']}",
+                        "kria": f"{summary['6']}\nהמספר המקורי: {session.user_id}",
+                        "clientCode": f"{client_id}"}
                 if len(data["technicianName"]) > 20:
                     print("Set technicianName only phone number without name")
-                    data = {"technicianName": f"{summary['5']}", "kria": f"{summary['6']}", "clientCode": f"{client_id}"}
+                    data = {"technicianName": f"{summary['5']}",
+                            "kria": f"{summary['6']}\nהמספר המקורי: {session.user_id}",
+                            "clientCode": f"{client_id}"}
                 if moses_api.create_kria(data):
                     print(f"Kria successfully created! {data}")
                     new_issue.set_issue_status(db, True)
@@ -350,7 +361,7 @@ def send_interactive_response(message, chooses):
     try:
         print(f"Sending interactive message: '{chooses}' ")
         url = f"{FACEBOOK_API_URL}/{PHONE_NUMBER_ID_PROVIDER}/messages"
-
+        payload = None
         buttons = [{
             "type": "reply",
             "reply": {
@@ -358,21 +369,58 @@ def send_interactive_response(message, chooses):
                 "title": msg
             }} for i, msg in enumerate(chooses)]
 
-        payload = {
-            "messaging_product": "whatsapp",
-            "recipient_type": "individual",
-            "to": f"{sender}",
-            "type": "interactive",
-            "interactive": {
-                "type": "button",
-                "body": {
-                    "text": f"{message}"
-                },
-                "action": {
-                    "buttons": json.dumps(buttons)
+        if len(chooses) <= 3:
+            payload = {
+                "messaging_product": "whatsapp",
+                "recipient_type": "individual",
+                "to": f"{sender}",
+                "type": "interactive",
+                "interactive": {
+                    "type": "button",
+                    "body": {
+                        "text": f"{message}"
+                    },
+                    "action": {
+                        "buttons": json.dumps(buttons)
+                    }
                 }
             }
-        }
+        else:
+            if len(chooses) > 10:
+                print("More then 10, use only 10 first")
+                buttons = [{
+                    "id": i,
+                    "title": msg,
+                    "description": "",
+                } for i, msg in enumerate(chooses[:10])]
+            else:
+                buttons = [{
+                    "id": i,
+                    "title": msg,
+                    "description": "",
+                } for i, msg in enumerate(chooses)]
+            print("Multiple options")
+            payload = {
+                "messaging_product": "whatsapp",
+                "recipient_type": "individual",
+                "to": f"{sender}",
+                "type": "interactive",
+                "interactive": {
+                    "type": "list",
+                    "body": {
+                        "text": f"{message}"
+                    },
+                    "action": {
+                        "button": "לחץ לבחירה",
+                        "sections": [
+                            {
+                                "title": "בחר פריט מהרשימה",
+                                "rows": json.dumps(buttons)
+                            }]
+                    }
+                }
+            }
+            # Todo: Fix right to left on body for list
         response = requests.post(url, json=payload, headers=headers, verify=False)
         if not response.ok:
             return f"Failed send message, response: '{response}'"
@@ -385,14 +433,6 @@ def send_interactive_response(message, chooses):
 
 
 def check_if_session_exist(db, user_id):
-    # print("Loading active conversation...")
-    # conversation_history = db.query(ConversationSession).filter(ConversationSession.session_active == True).all()
-    # print(f"Check check_if_session_exist '{user_id}'")
-    # # search for active session with user_id
-    # for session in conversation_history:
-    #     if session.user_id == user_id:
-    #         print("SESSION exist!")
-    #         return session
     session = db.query(ConversationSession).filter(ConversationSession.user_id == user_id,
                                                    ConversationSession.session_active == True).all()
     if len(session) > 1:
@@ -442,7 +482,6 @@ def check_for_afk_sessions(db):
                 print(f"end session phone: '{open_session.user_id}' id {open_session.id}")
                 send_response_using_whatsapp_api("השיחה הופסקה בשל אי שימוש, על מנת להתחיל שיחה חדשה אנא שלח הודעה",
                                                  _specific_sendr=open_session.user_id)
-                # conversation.set_status()
                 open_session.session_active = False
                 db.commit()
                 print("session Delete!")
@@ -459,7 +498,6 @@ def schedule_search_for_inactive_sessions():
 
 if __name__ == "__main__":
     print("From main")
-    schedule_search_for_inactive_sessions()
     uvicorn.run(app,
                 host="0.0.0.0",
                 port=int(PORT),
