@@ -39,7 +39,7 @@ conversation = {
                 " בכל שלב תוכלו לרשום לנו יציאה והמערכת תתחיל את השיחה מחדש"
 }
 WORKING_HOURS_START_END = (8, 17)
-non_working_hours_msg = """שלום, השירות פעיל בימים א'-ה' בשעות 08:00- 17:30. 
+non_working_hours_msg = """שלום, שירות הוואצפ פעיל בימים א'-ה' בשעות 08:00- 17:30. 
 ניתן לפתוח קריאה באתר דרך הקישור הבא 
  026430010.co.il
 ונחזור אליכם בשעות הפעילות
@@ -203,7 +203,7 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
         send_response_using_whatsapp_api(non_working_hours_msg)
         return non_working_hours_msg
     log = ""
-    if user_msg in ["אדמין"]:
+    if user_msg in ["אדמין", "servercheck"]:
         created_issues_history = db.query(Issues).filter(Issues.issue_sent_status == True).all()
         for issue in created_issues_history:
             log += f"Conversation ID: {issue.conversation_id} Sent message: {issue.issue_data}\n"
@@ -480,7 +480,7 @@ def check_for_afk_sessions(db):
         if minutes > MAX_NOT_RESPONDING_TIMEOUT_MINUETS:
             try:
                 print(f"end session phone: '{open_session.user_id}' id {open_session.id}")
-                send_response_using_whatsapp_api("השיחה הופסקה בשל אי שימוש, על מנת להתחיל שיחה חדשה אנא שלח הודעה",
+                send_response_using_whatsapp_api("השיחה הופסקה עקב חוסר מענה, על מנת להתחיל שיחה חדשה אנא שלח הודעה",
                                                  _specific_sendr=open_session.user_id)
                 open_session.session_active = False
                 db.commit()
