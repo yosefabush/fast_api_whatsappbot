@@ -66,7 +66,7 @@ class ConversationSession(Base):
     password = Column(String(255), unique=False, index=True)
     login_attempts = Column(Integer)
     call_flow_location = Column(Integer)
-    all_client_products_in_service = Column(Text)
+    all_client_products_in_service = Column(LONGTEXT)
     start_data = Column(TIMESTAMP(timezone=False), nullable=False, default=datetime.datetime.now())
     # start_data = Column('timestamp', TIMESTAMP(timezone=False), nullable=False, default=datetime.datetime.now())
     session_active = Column(Boolean, default=True)
