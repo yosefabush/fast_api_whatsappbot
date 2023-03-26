@@ -3,6 +3,7 @@ import json
 import datetime
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Boolean, Column, Integer, String, TIMESTAMP, Text
 
