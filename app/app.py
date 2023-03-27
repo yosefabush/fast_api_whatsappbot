@@ -98,20 +98,19 @@ def get_user(user, response: Response, db: Session = Depends(get_db)):
 
 
 @app.get("/get_all_created_issues/{user}")
-def get_conversations(user, db  : Session = Depends(get_db)):
+def get_conversations(user, db: Session = Depends(get_db)):
     results = list()
-    if user not in ["אדמין", "servercheck"]:
+    if user.lower() not in ["admin", "servercheck"]:
         raise HTTPException(status_code=400, detail="Only admin can get all created issues")
-    created_issues_history = db.query(Issues).filter(Issues.issue_sent_status == True, Issues.id==4444).all()
+    created_issues_history = db.query(Issues).filter(Issues.issue_sent_status == True).all()
     for issue in created_issues_history:
         results.append({"ID": issue.conversation_id, "Message": issue.issue_data})
     return JSONResponse(content={"sessions": results})
 
 
 @app.get("/reset/{user}")
-# def create_user(user: UserSchema, db: Session = Depends(get_db)):
 def reset_all_sessions(user, db: Session = Depends(get_db)):
-    if user != "אדמין":
+    if user.lower() not in ["admin"]:
         raise HTTPException(status_code=400, detail="Only admin can reset all sessions")
     conversation_history = db.query(ConversationSession).filter(ConversationSession.session_active == True).all()
     for session in conversation_history:
