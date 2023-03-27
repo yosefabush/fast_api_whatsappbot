@@ -155,23 +155,12 @@ class ConversationSession(Base):
         try:
             if case == 1:
                 print(f"Check if user name '{answer}' valid")
-                # user_db = db.query(User).filter(User.name == answer).first()
-                # if user_db is None:
-                #     print("user name not exist")
-                #     return False
-                # self.set_convertsion_step(case, answer)
             elif case == 2:
                 print(f"Log in with password '{answer}'")
                 print(f"Search for user with user name '{self.get_conversation_step_json('1')}' and password '{answer}'")
-                # user_db = moses_api.get_product_by_user(self.get_converstion_step('1'), self.password)
-                # user_db = db.query(User).filter(User.name == self.get_conversation_step_json('1'),
-                #                                 User.password == answer).first()
                 client_id = moses_api.login_whatsapp(self.get_conversation_step_json('1'), answer)
                 if client_id is None:
                     return False
-                # if user_db is None:
-                #     print("user not found!")
-                #     return False
                 # print("User found!")
                 self.password = f"{answer};{client_id}"
                 db.commit()
@@ -194,7 +183,7 @@ class ConversationSession(Base):
                 for d in res:
                     an = d.get(answer, None)
                     if an is not None:
-                        print(an[0])
+                        # print(an[0])
                         found = True
                         break
                 return found
@@ -275,29 +264,7 @@ class ConversationSession(Base):
         session.session_active = status
         db.commit()
 
-    def get_options_subjects(self, db):
-        # [a.name for a in db.query(Items.name).all()]
-        # choices = {a.name: a.id for a in db.query(Items).all()} list(choices.keys())
-        choices = moses_api.get_subjects_by_user_and_password(self.password.split(";")[1])
-        if choices is None:
-            raise Exception("No options found")
-        print(f"Allowed values: '{choices}'")
-        self.all_client_products_in_service = json.dumps(choices)
-        db.commit()
-        print("saved to DB!")
-        # distinct_values = {row['NumComp']:row['ProductSherotName'].split("-")[0].strip() for row in choices}
-        distinct_values = dict()
-        for row in choices:
-            clean_name = row['ProductSherotName'].split("-")[0].strip()
-            if clean_name not in distinct_values.keys():
-                distinct_values[clean_name] = [row['NumComp']]
-                print("new")
-            else:
-                distinct_values[clean_name].append(row['NumComp'])
-                print("else")
-        return list(distinct_values.keys())
-
-    def get_all_client_product_and_save_db_subjects2(self, db):
+    def get_all_client_product_and_save_db_subjects(self, db):
         choices = moses_api.get_sorted_product_by_user_and_password(self.password.split(";")[1])
         if choices is None:
             raise Exception("No options found")

@@ -18,6 +18,7 @@ PERFIX_PASSWORD = int(message_bytes.decode('ascii'))
 
 
 def create_kria(data):
+    print("creating kria...")
     data["id"] = PERFIX_USER_ID
     data["password"] = PERFIX_PASSWORD
     return True
@@ -29,36 +30,8 @@ def create_kria(data):
     return False
 
 
-def get_subjects_by_user_and_password(client_id):
-    print("GetClientProductsInService")
-    res = {'table': [{'NumComp': '200401', 'ProductSherotName': 'מחשב - ELISHA-PC'},
-                     {'NumComp': '501384', 'ProductSherotName': 'מחשב - אלישע'}]}
-    # return list(dict.fromkeys([name["ProductSherotName"].split("-")[0].strip() for name in res["table"]]))
-    # return {row['NumComp']:row['ProductSherotName'] for row in res["table"]}
-    url = END_POINT + F"/GetClientProductsInService?clientId={client_id}&Id={PERFIX_USER_ID}&password={PERFIX_PASSWORD}"
-    response = requests.get(url, verify=False)
-    if response.ok:
-        root = ET.fromstring(response.content)
-        data = json.loads(root.text)
-        return data["table"]
-        # return data
-        # distinct_values = set()
-        # for k in data["table"]:
-        #     for ke, va in k.items():
-        #         clean = va.split('-')[0]
-        #         distinct_values.add(clean)
-        #         print(va.split('-')[0])
-        # return data["table"], distinct_values
-    return None
-
-
 def get_sorted_product_by_user_and_password(client_id):
-    res = {'table': [{'NumComp': '200401', 'ProductSherotName': 'מחשב - ELISHA-PC'},
-                     {'NumComp': '501384', 'ProductSherotName': 'מחשב - אלישע'}]}
-    # data = {"clientId": client_id, "id": PERFIX_USER_ID, "password": PERFIX_PASSWORD}
-    # url = END_POINT + f"/GetClientProductsInServiceForWhatsapp"
-    # headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-    # response = requests.post(url, data=data, headers=headers)
+    print("get_sorted_product, GetClientProductsInServiceForWhatsapp")
     url = END_POINT + F"/GetClientProductsInServiceForWhatsapp?clientId={client_id}&Id={PERFIX_USER_ID}&password={PERFIX_PASSWORD}"
     response = requests.get(url, verify=False)
     if response.ok:
@@ -76,7 +49,7 @@ def get_sorted_product_by_user_and_password(client_id):
                 else:
                     distinct_product_values[row['ProductSherotName']] = [
                         {f"{row['Description']}": [row['Description']]}]
-                print("new product")
+                # print("new product")
             else:
                 # distinct_product_values[row['ProductSherotName']].append(row['NumComp'])
                 # distinct_product_values[row['ProductSherotName']].append({f"{row['NumComp']}-{row['Description']}":[row['NumComp']]})
@@ -86,22 +59,23 @@ def get_sorted_product_by_user_and_password(client_id):
                 else:
                     distinct_product_values[row['ProductSherotName']].append(
                         {f"{row['Description']}": [row['Description']]})
-                print("exist product")
+                # print("exist product")
         return distinct_product_values
     return None
 
 
 def login_whatsapp(user, password):
+    print("LoginWhatsapp..")
     data = {"username": user, "password": password}
     url = END_POINT + f"/LoginWhatsapp"
     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
     response = requests.post(url, data=data, headers=headers)
     if response.ok:
         root = ET.fromstring(response.content)
-        data = json.loads(root.text)
-        return data
+        try:
+            data = json.loads(root.text)
+            return data
+        except Exception as ex:
+            print(f"Exception {ex}")
+            return False
     return False
-
-# Todo: #
-#  1) add ProductServiceId to Insert new
-#  2) add new end point to get all necessary data (client_id)

@@ -121,7 +121,7 @@ async def get_users(db=Depends(get_db)):
 @app.post("/webhook")
 async def handle_message_with_request_scheme(data: WebhookRequestData, db: Session = Depends(get_db)):
     try:
-        print("handle_message webhook")
+        # print("handle_message webhook")
         global sender
         message = "ok"
         if data.object == "whatsapp_business_account":
@@ -154,8 +154,8 @@ async def handle_message_with_request_scheme(data: WebhookRequestData, db: Sessi
                             raise Exception("unknown type {event['value']['messages'][0]['interactive']}")
                         sender = event['value']['messages'][0]['from']
                         message = process_bot_response(db, text, button_selected=True)
-                        res = f"Json: '{event['value']['messages'][0]}'"
-                        print(res)
+                        # res = f"Json: '{event['value']['messages'][0]}'"
+                        # print(res)
                     else:
                         print(f"Type '{type}' is not valid")
                         message = f"Json: '{event['value']['messages'][0]}'"
@@ -263,12 +263,12 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
             if current_conversation_step == "2":
                 send_response_using_whatsapp_api("שלום " + session.get_conversation_step_json("1") + "!")
                 # show buttons for step 4
-                subject_groups = session.get_all_client_product_and_save_db_subjects2(db)
+                subject_groups = session.get_all_client_product_and_save_db_subjects(db)
                 return send_interactive_response(conversation_steps[next_step_conversation_after_increment],
                                                  subject_groups)
             elif current_conversation_step in ["3", "4"]:
                 if button_selected:
-                    print(f"drop menu: {user_msg}")
+                    print(f"selected button: '{user_msg}'")
                     session.increment_call_flow(db)
                     next_step_conversation_after_increment = str(session.call_flow_location)
                 if current_conversation_step == "3":
@@ -291,28 +291,26 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                     return conversation_steps[next_step_conversation_after_increment]
             else:
                 send_response_using_whatsapp_api(conversation_steps[next_step_conversation_after_increment])
-                # regarding last step
+                # check if is last step
                 if next_step_conversation_after_increment != str(len(conversation_steps)):
                     return conversation_steps[next_step_conversation_after_increment]
             # Check if conversation reach to last step
             if next_step_conversation_after_increment == str(len(conversation_steps)):  # 7
+                summary = json.loads(session.convers_step_resp)
+                client_id = session.password.split(";")[1]
+                data = {"technicianName": f"{summary['5'].replace('972', '0')}-{summary['1']}", # product name and phone
+                        "kria": f"{summary['6']}\nהמספר המקורי: {session.user_id}", # issue details and orig phone number
+                        "clientCode": f"{client_id}"} # client code
+                if len(data["technicianName"]) > 20:
+                    print("technicianName is Over 20 character! Set technicianName only phone number without name")
+                    data["technicianName"] = f"{summary['5']}"
                 new_issue = Issues(conversation_id=session.id,
                                    item_id=session.get_conversation_step_json("4"),
-                                   issue_data=session.get_conversation_step_json(str(int(current_conversation_step)))
+                                   issue_data=data["kria"]
                                    )
                 db.add(new_issue)
                 db.commit()
                 print(f"Issue successfully created! {new_issue}")
-                summary = json.loads(session.convers_step_resp)
-                client_id = session.password.split(";")[1]
-                data = {"technicianName": f"{summary['5'].replace('972', '0')}-{summary['1']}",
-                        "kria": f"{summary['6']}\nהמספר המקורי: {session.user_id}",
-                        "clientCode": f"{client_id}"}
-                if len(data["technicianName"]) > 20:
-                    print("Set technicianName only phone number without name")
-                    data = {"technicianName": f"{summary['5']}",
-                            "kria": f"{summary['6']}\nהמספר המקורי: {session.user_id}",
-                            "clientCode": f"{client_id}"}
                 if moses_api.create_kria(data):
                     print(f"Kria successfully created! {data}")
                     new_issue.set_issue_status(db, True)
@@ -362,7 +360,7 @@ def send_response_using_whatsapp_api(message, debug=False, _specific_sendr=None)
         raise EX
 
 
-def send_interactive_response(message, chooses):
+def send_interactive_response(message, chooses, debug=False):
     try:
         print(f"Sending interactive message: '{chooses}' ")
         url = f"{FACEBOOK_API_URL}/{PHONE_NUMBER_ID_PROVIDER}/messages"
@@ -425,14 +423,18 @@ def send_interactive_response(message, chooses):
                 }
             }
             # Todo: Fix right to left on body for list
+        if debug:
+            print(f"Payload '{payload}' ")
+            print(f"Headers '{headers}' ")
+            print(f"URL '{url}' ")
         response = requests.post(url, json=payload, headers=headers, verify=False)
         if not response.ok:
-            return f"Failed send message, response: '{response}'"
-        print(f"Message sent successfully to :'{sender}'!")
+            return f"Failed send interactive message, response: '{response}'"
+        print(f"Interactive message sent successfully to :'{sender}'!")
         # return f"Interactive sent successfully to :'{sender}'!"
         return f"{message}\n{chooses}"
     except Exception as EX:
-        print(f"Error send whatsapp : '{EX}'")
+        print(f"Error send interactive whatsapp : '{EX}'")
         raise EX
 
 
@@ -440,11 +442,10 @@ def check_if_session_exist(db, user_id):
     session = db.query(ConversationSession).filter(ConversationSession.user_id == user_id,
                                                    ConversationSession.session_active == True).all()
     if len(session) > 1:
-        print("more then one SESSION exist!")
         print(f"There is more then one active call for {user_id}, returning last one")
         return session[-1]
     if len(session) == 1:
-        print("SESSION exist!")
+        # print("SESSION exist!")
         return session[0]
     return None
 
