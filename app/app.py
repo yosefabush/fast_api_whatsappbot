@@ -8,13 +8,14 @@ from Model.models import *
 from datetime import datetime
 from json import JSONDecodeError
 from sqlalchemy.orm import Session
+from starlette.responses import JSONResponse
 from requests.structures import CaseInsensitiveDict
 from DatabaseConnection import SessionLocal, engine
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 
 requests.packages.urllib3.disable_warnings()
 
-PORT = os.getenv("PORT", default=443)
+PORT = os.getenv("PORT", default=8000)
 TOKEN = os.getenv('TOKEN', default=None)
 VERIFY_TOKEN = os.getenv("VERIFY_TOKEN", default=None)
 PHONE_NUMBER_ID_PROVIDER = os.getenv("NUMBER_ID_PROVIDER", default="104091002619024")
@@ -96,18 +97,38 @@ def get_user(user, response: Response, db: Session = Depends(get_db)):
     return {"Result": f"{user} not Found"}
 
 
-@app.post("/users/")
+@app.get("/get_all_created_issues/{user}")
+def get_conversations(user, db  : Session = Depends(get_db)):
+    results = list()
+    if user not in ["אדמין", "servercheck"]:
+        raise HTTPException(status_code=400, detail="Only admin can get all created issues")
+    created_issues_history = db.query(Issues).filter(Issues.issue_sent_status == True, Issues.id==4444).all()
+    for issue in created_issues_history:
+        results.append({"ID": issue.conversation_id, "Message": issue.issue_data})
+    return JSONResponse(content={"sessions": results})
+
+
+@app.get("/reset/{user}")
 # def create_user(user: UserSchema, db: Session = Depends(get_db)):
-def create_user(user, db: Session = Depends(get_db)):
-    user = User(db=db, name="Alice", password="password", phone="555-1234")
-    # user_ = User(db, user)
-    existing_user = db.query(User).filter(User.phone == user.phone).first()
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Phone number already registered")
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return f"'{user}' Created"
+def reset_all_sessions(user, db: Session = Depends(get_db)):
+    if user != "אדמין":
+        raise HTTPException(status_code=400, detail="Only admin can reset all sessions")
+    conversation_history = db.query(ConversationSession).filter(ConversationSession.session_active == True).all()
+    for session in conversation_history:
+        # session.set_status(db, False)
+        session.session_active = False
+        db.commit()
+    print("All conversation were reset")
+    return "All conversation were reset"
+    # user = User(db=db, name="Alice", password="password", phone="555-1234")
+    # # user_ = User(db, user)
+    # existing_user = db.query(User).filter(User.phone == user.phone).first()
+    # if existing_user:
+    #     raise HTTPException(status_code=400, detail="Phone number already registered")
+    # db.add(user)
+    # db.commit()
+    # db.refresh(user)
+    # return f"'{user}' Created"
 
 
 @app.get("/all_users")
@@ -255,7 +276,8 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
             return "השיחה הסתיימה, על מנת לחדש את השיחה אנא שלח הודעה"
         current_conversation_step = str(session.call_flow_location)
         print(f"Current step is: {current_conversation_step}")
-        is_answer_valid, message_in_error = session.validate_and_set_answer(db, current_conversation_step, user_msg,button_selected)
+        is_answer_valid, message_in_error = session.validate_and_set_answer(db, current_conversation_step, user_msg,
+                                                                            button_selected)
         if is_answer_valid:
             if not button_selected:
                 session.increment_call_flow(db)
@@ -298,9 +320,11 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
             if next_step_conversation_after_increment == str(len(conversation_steps)):  # 7
                 summary = json.loads(session.convers_step_resp)
                 client_id = session.password.split(";")[1]
-                data = {"technicianName": f"{summary['5'].replace('972', '0')}-{summary['1']}", # product name and phone
-                        "kria": f"{summary['6']}\nהמספר המקורי: {session.user_id}", # issue details and orig phone number
-                        "clientCode": f"{client_id}"} # client code
+                data = {"technicianName": f"{summary['5'].replace('972', '0')}-{summary['1']}",
+                        # product name and phone
+                        "kria": f"{summary['6']}\nהמספר המקורי: {session.user_id}",
+                        # issue details and orig phone number
+                        "clientCode": f"{client_id}"}  # client code
                 if len(data["technicianName"]) > 20:
                     print("technicianName is Over 20 character! Set technicianName only phone number without name")
                     data["technicianName"] = f"{summary['5']}"
