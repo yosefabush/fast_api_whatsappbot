@@ -55,9 +55,12 @@ class ConversationSession(Base):
         "2": "אנא הזן סיסמא",
         "3": "תודה שפנית אלינו, פרטיך נקלטו במערכת, באיזה נושא נוכל להעניק לך שירות?\n(לפתיחת קריאה ללא נושא רשום 'אחר')",
         "4": "אנא בחר קוד מוצר",
-        "5": "על מנת לחזור למספר ממנו שלחת את ההודעה שלח 1 אחרת את הקש את המספר הרצוי",
+        "5": "יצירת קשר, אם ברצונך לחזור למספר אחר אנא הקש את המספר הרצוי",
         "6": "נא רשום בקצרה את תיאור הפנייה",
-        "7": "פנייתך התקבלה, נציג טלפוני יחזור אליך בהקדם.\nאנא הישאר זמין\nכדי לפתוח שיחה חדשה ניתן לשלוח הודעה נוספת\nתודה ולהתראות",
+        "7": """פנייתך התקבלה, נציג טלפוני יחזור אליך בהקדם.
+אנא הישאר זמין  📶 📞
+כדי לפתוח שיחה חדשה ניתן לשלוח הודעה נוספת
+תודה ולהתראות""",
     }
     MAX_LOGING_ATTEMPTS = 3
     __tablename__ = 'conversation'
@@ -189,7 +192,8 @@ class ConversationSession(Base):
                 return found
             elif case == 5:
                 print(f"Check if phone number '{answer}' is valid")
-                if answer != "1":
+                # if answer != "1":
+                if answer != "חזור למספר שלי":
                     # rule = re.compile(r'(^[+0-9]{1,3})*([0-9]{10,11}$)')
                     rule = re.compile(r'(^\+?(972|0)(\-)?0?(([23489]{1}\d{7})|[5]{1}\d{8})$)')
                     if not rule.search(answer):
@@ -205,9 +209,9 @@ class ConversationSession(Base):
             print(f"step {case} {ex}")
             return False
 
-    def validate_and_set_answer(self, db, step, response,is_button_selected):
+    def validate_and_set_answer(self, db, step, response, is_button_selected):
         step = int(step)
-        if self.validation_switch_step(db, step, response,is_button_selected):
+        if self.validation_switch_step(db, step, response, is_button_selected):
             if step == 3 and response == "אחר":
                 self.set_conversion_step(step, "None", db)
                 self.set_conversion_step(4, "None", db)
@@ -223,10 +227,12 @@ class ConversationSession(Base):
                         self.set_conversion_step(step, an[0], db)
                         break
             elif step == 5:
-                if response == "1":
+                # if response == "1":
+                if response == "חזור למספר שלי":
                     # user_id is phone number in conversation
                     self.set_conversion_step(step, self.user_id, db)
                 else:
+                    # new phone number
                     self.set_conversion_step(step, response, db)
             else:
                 self.set_conversion_step(step, response, db)

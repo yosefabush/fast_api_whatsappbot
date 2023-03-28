@@ -26,6 +26,7 @@ def create_kria(data):
     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
     response = requests.post(url, data=data, headers=headers)
     if response.ok:
+        print(f"kria created! '{response}'")
         return True
     return False
 

@@ -1,4 +1,5 @@
 import os
+import time
 import pytz
 import uvicorn
 import requests
@@ -50,6 +51,7 @@ non_working_hours_msg = """שלום, שירות הוואצפ פעיל בימים
 # Define a list of predefined conversation steps
 conversation_steps = ConversationSession.conversation_steps_in_class
 
+# limiter = Limiter(key_func=get_remote_address, default_limits=["2/5seconds"])
 # conversation_history = list()
 app = FastAPI(debug=False)
 
@@ -83,8 +85,9 @@ def get_db():
 
 
 @app.get("/")
-def root():
+async def root():
     print("root router 1!")
+    time.sleep(5)
     return {"Hello": "FastAPI"}
 
 
@@ -287,7 +290,7 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                 subject_groups = session.get_all_client_product_and_save_db_subjects(db)
                 return send_interactive_response(conversation_steps[next_step_conversation_after_increment],
                                                  subject_groups)
-            elif current_conversation_step in ["3", "4"]:
+            elif current_conversation_step in ["3", "4", "5"]:
                 if button_selected:
                     print(f"selected button: '{user_msg}'")
                     session.increment_call_flow(db)
@@ -307,6 +310,9 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                         send_response_using_whatsapp_api(conversation_steps[next_step_conversation_after_increment])
                         return conversation_steps[next_step_conversation_after_increment]
                     # return "Choose product..."
+                elif current_conversation_step == "4":
+                    return send_interactive_response(conversation_steps[next_step_conversation_after_increment],
+                                                     ["חזור למספר שלי"])
                 else:
                     send_response_using_whatsapp_api(conversation_steps[next_step_conversation_after_increment])
                     return conversation_steps[next_step_conversation_after_increment]
@@ -394,7 +400,7 @@ def send_interactive_response(message, chooses, debug=False):
                 "title": msg
             }} for i, msg in enumerate(chooses)]
 
-        if False:
+        if len(chooses) == 1:
             payload = {
                 "messaging_product": "whatsapp",
                 "recipient_type": "individual",
