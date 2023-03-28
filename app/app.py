@@ -325,9 +325,10 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
             if next_step_conversation_after_increment == str(len(conversation_steps)):  # 7
                 summary = json.loads(session.convers_step_resp)
                 client_id = session.password.split(";")[1]
-                data = {"technicianName": f"{summary['5'].replace('972', '0')}-{summary['1']}",
+                _phone_number_with_0 = summary['5'].replace('972', '0')
+                data = {"technicianName": f"{_phone_number_with_0} {summary['1']}",
                         # product name and phone
-                        "kria": f"{summary['6']}\nהמספר המקורי: {session.user_id}",
+                        "kria": f"{summary['6']}\nהמספר ממנו נפתחה הקריאה: {session.user_id.replace('972', '0')}",
                         # issue details and orig phone number
                         "clientCode": f"{client_id}"}  # client code
                 if len(data["technicianName"]) > 20:
