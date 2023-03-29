@@ -273,7 +273,7 @@ class ConversationSession(Base):
     def get_all_client_product_and_save_db_subjects(self, db):
         choices = moses_api.get_sorted_product_by_user_and_password(self.password.split(";")[1])
         if choices is None:
-            raise Exception("No options found")
+            raise Exception("get_all_client_product error (check user password and client Id)")
         print(f"Allowed values: '{choices}'")
         self.all_client_products_in_service = json.dumps(choices)
         db.commit()
