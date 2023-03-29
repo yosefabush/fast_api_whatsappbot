@@ -100,5 +100,5 @@ def login_whatsapp(user, password):
             return data
         except Exception as ex:
             print(f"login_whatsapp Exception {ex}")
-            return False
-    return False
+            return None
+    return None
