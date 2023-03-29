@@ -245,7 +245,7 @@ class ConversationSession(Base):
             elif self.call_flow_location == 2:
                 self.login_attempts += 1
                 hint = f"נסיון {self.login_attempts} מתוך {self.MAX_LOGING_ATTEMPTS}"
-                result = f"סיסמא שגויה אנא נסה שוב ({hint})"
+                result = f"שם משתמש או סיסמא שגויים\n אנא נסה שוב ({hint})"
                 db.commit()
                 if self.login_attempts == self.MAX_LOGING_ATTEMPTS:
                     print("restart session")
