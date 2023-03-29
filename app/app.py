@@ -10,6 +10,9 @@ from datetime import datetime
 from json import JSONDecodeError
 from sqlalchemy.orm import Session
 from starlette.responses import JSONResponse
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi import Limiter, _rate_limit_exceeded_handler
 from requests.structures import CaseInsensitiveDict
 from DatabaseConnection import SessionLocal, engine
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
@@ -51,9 +54,11 @@ non_working_hours_msg = """שלום, שירות הוואצפ פעיל בימים
 # Define a list of predefined conversation steps
 conversation_steps = ConversationSession.conversation_steps_in_class
 
-# limiter = Limiter(key_func=get_remote_address, default_limits=["2/5seconds"])
+limiter = Limiter(key_func=get_remote_address)
 # conversation_history = list()
 app = FastAPI(debug=False)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 # Request Models.
@@ -87,7 +92,6 @@ def get_db():
 @app.get("/")
 async def root():
     print("root router 1!")
-    time.sleep(5)
     return {"Hello": "FastAPI"}
 
 
@@ -142,7 +146,8 @@ async def get_users(db=Depends(get_db)):
 
 
 @app.post("/webhook")
-async def handle_message_with_request_scheme(data: WebhookRequestData, db: Session = Depends(get_db)):
+@limiter.limit('100/minute')
+async def handle_message_with_request_scheme(request: Request, data: WebhookRequestData, db: Session = Depends(get_db)):
     try:
         # print("handle_message webhook")
         global sender

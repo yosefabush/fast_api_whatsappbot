@@ -5,6 +5,7 @@ import xml.etree.ElementTree as ET
 
 END_POINT = "https://026430010.co.il/MosesTechWebService/Service1.asmx"
 # encode code
+# PERFIX_USER_ID = 'MTQ='
 PERFIX_USER_ID = 'NDQ4'
 PERFIX_PASSWORD = 'NDU2Nzg5'
 
