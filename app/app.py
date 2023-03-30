@@ -39,7 +39,7 @@ headers["Authorization"] = f"Bearer {TOKEN}"
 session_open = False
 conversation = {
     "Greeting": "היי ברוך הבא לבוט של מוזס!\nתודה שפנית אלינו 😊\n"
-                "כדי לפתוח קריאה נעבור תהליך זיהוי קצר,"
+                "כדי לפתוח קריאת שירות עלינו לבצע הליך זיהוי קצר,"
                 " בכל שלב תוכלו לרשום לנו יציאה והמערכת תתחיל את השיחה מחדש"
 }
 WORKING_HOURS_START_END = (8, 17)
