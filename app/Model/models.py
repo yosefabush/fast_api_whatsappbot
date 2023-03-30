@@ -1,11 +1,12 @@
 import re
 import json
-import datetime
+from typing import List
+from datetime import datetime
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Boolean, Column, Integer, String, TIMESTAMP, Text
+from sqlalchemy import Boolean, Column, Integer, String, Text, DateTime
 
 from Model import moses_api
 
@@ -55,9 +56,10 @@ class ConversationSession(Base):
         "2": "אנא הזן סיסמא",
         "3": "תודה שפנית אלינו, פרטיך נקלטו במערכת, באיזה נושא נוכל להעניק לך שירות?\n(לפתיחת קריאה ללא נושא רשום 'אחר')",
         "4": "אנא בחר קוד מוצר",
-        "5": "יצירת קשר, אם ברצונך לחזור למספר אחר אנא הקש את המספר הרצוי",
-        "6": "נא רשום בקצרה את תיאור הפנייה",
-        "7": """פנייתך התקבלה, נציג טלפוני יחזור אליך בהקדם.
+        "5": "אם ברצונך לחזור למספר אחר אנא הקש את המספר לחזרה",
+        "6": "מה שם פותח הקריאה?",
+        "7": "נא רשום בקצרה את תיאור הפנייה",
+        "8": """פנייתך התקבלה, נציג טלפוני יחזור אליך בהקדם.
 אנא הישאר זמין  📶 📞
 כדי לפתוח שיחה חדשה ניתן לשלוח הודעה נוספת
 תודה ולהתראות""",
@@ -71,8 +73,7 @@ class ConversationSession(Base):
     login_attempts = Column(Integer)
     call_flow_location = Column(Integer)
     all_client_products_in_service = Column(LONGTEXT)
-    start_data = Column(TIMESTAMP(timezone=False), nullable=False, default=datetime.datetime.now())
-    # start_data = Column('timestamp', TIMESTAMP(timezone=False), nullable=False, default=datetime.datetime.now())
+    start_data = Column(DateTime, nullable=False, default=datetime.now())
     session_active = Column(Boolean, default=True)
     convers_step_resp = Column(String(1500), unique=False)
 
@@ -88,7 +89,8 @@ class ConversationSession(Base):
                                              "3": "",
                                              "4": "",
                                              "5": "",
-                                             "6": ""
+                                             "6": "",
+                                             "7": ""
                                              })
         # self.db = db
 
@@ -159,12 +161,10 @@ class ConversationSession(Base):
             if case == 1:
                 print(f"Check if user name '{answer}' valid")
             elif case == 2:
-                print(f"Log in with password '{answer}'")
-                print(f"Search for user with user name '{self.get_conversation_step_json('1')}' and password '{answer}'")
+                print(f"Log in user name '{self.get_conversation_step_json('1')}' password '{answer}'")
                 client_id = moses_api.login_whatsapp(self.get_conversation_step_json('1'), answer)
                 if client_id is None:
                     return False
-                # print("User found!")
                 self.password = f"{answer};{client_id}"
                 db.commit()
             elif case == 3:
@@ -192,15 +192,15 @@ class ConversationSession(Base):
                 return found
             elif case == 5:
                 print(f"Check if phone number '{answer}' is valid")
-                # if answer != "1":
                 if answer != "חזור למספר שלי":
-                    # rule = re.compile(r'(^[+0-9]{1,3})*([0-9]{10,11}$)')
                     rule = re.compile(r'(^\+?(972|0)(\-)?0?(([23489]{1}\d{7})|[5]{1}\d{8})$)')
                     if not rule.search(answer):
                         msg = "המספר שהוקש איננו תקין"
                         print(msg)
                         return False
             elif case == 6:
+                print(f"Opening issue name {answer}")
+            elif case == 7:
                 print(f"NO NEED TO VALIDATE ISSUE")
             else:
                 return False
@@ -246,6 +246,7 @@ class ConversationSession(Base):
                 self.login_attempts += 1
                 hint = f"נסיון {self.login_attempts} מתוך {self.MAX_LOGING_ATTEMPTS}"
                 result = f"שם משתמש או סיסמא שגויים\n אנא נסה שוב ({hint})"
+                # self.call_flow_location = 1
                 db.commit()
                 if self.login_attempts == self.MAX_LOGING_ATTEMPTS:
                     print("restart session")
@@ -308,32 +309,8 @@ class UserSchema(BaseModel):
     class Config:
         orm_model = True
 
-# class ItemsSchema(BaseModel):
-#     id: int
-#     name: str
-#
-#     class Config:
-#         orm_model = True
-#
-#
-# class IssuesSchema(BaseModel):
-#     id: int
-#     user_id: int
-#     item_id: int
-#     status: bool
-#
-#     class Config:
-#         orm_model = True
-#
-#
-# class ConversationSessionSchema(BaseModel):
-#     user_id = int
-#     password = str
-#     call_flow_location = int
-#     issue_to_be_created = str
-#     start_data = datetime
-#     session_active = bool
-#     convers_step_resp = str
-#
-#     class Config:
-#         orm_model = True
+
+# Request Models.
+class WebhookRequestData(BaseModel):
+    object: str = ""
+    entry: List = []

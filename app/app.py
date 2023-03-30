@@ -1,10 +1,8 @@
 import os
-import time
 import pytz
 import uvicorn
 import requests
 import threading
-from typing import List
 from Model.models import *
 from datetime import datetime
 from json import JSONDecodeError
@@ -15,6 +13,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from requests.structures import CaseInsensitiveDict
 from DatabaseConnection import SessionLocal, engine
+from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 
 requests.packages.urllib3.disable_warnings()
@@ -25,12 +24,12 @@ VERIFY_TOKEN = os.getenv("VERIFY_TOKEN", default=None)
 PHONE_NUMBER_ID_PROVIDER = os.getenv("NUMBER_ID_PROVIDER", default="104091002619024")
 FACEBOOK_API_URL = 'https://graph.facebook.com/v16.0'
 WHATS_API_URL = 'https://api.whatsapp.com/v3'
-TIMER_FOR_SEARCH_OPEN_SESSION_SEC = 300
+TIMER_FOR_SEARCH_OPEN_SESSION_MINUTES = 3
 MAX_NOT_RESPONDING_TIMEOUT_MINUETS = 5
 TIME_PASS_FROM_LAST_SESSION = 2
 if None in [TOKEN, VERIFY_TOKEN]:
     raise Exception(f"Error on env var '{TOKEN, VERIFY_TOKEN}' ")
-# db = Database()
+
 sender = None
 language_support = {"he": "he_IL", "en": "en_US"}
 
@@ -60,24 +59,25 @@ app = FastAPI(debug=False)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-
-# Request Models.
-class WebhookRequestData(BaseModel):
-    object: str = ""
-    entry: List = []
+# Create a new scheduler
+scheduler = BackgroundScheduler()
 
 
 @app.on_event("startup")
 def startup():
-    print("startup DB create_all")
+    print("startup DB create_all..")
     Base.metadata.create_all(bind=engine)
-    schedule_search_for_inactive_sessions()
+    print(f"starting SEARCH OPEN SESSION scheduler every ({TIMER_FOR_SEARCH_OPEN_SESSION_MINUTES}) minuets..")
+    scheduler.start()
+    # schedule_search_for_inactive_sessions()
 
 
 @app.on_event("shutdown")
 def shutdown():
-    print("shutdown DB dispose")
+    print("shutdown DB dispose..")
     engine.dispose()
+    print("shutdown scheduler..")
+    scheduler.shutdown()
 
 
 # Dependency
@@ -87,6 +87,42 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def check_for_afk_sessions(db_connection):
+    # db = next(get_db())
+    results = db_connection.query(ConversationSession).filter(ConversationSession.session_active == True).all()
+    print(f"Active session found: '{len(results)}'")
+    for open_session in results:
+        now = datetime.now()
+        diff = now - open_session.start_data
+        min = diff.total_seconds() / 60
+        if min < MAX_NOT_RESPONDING_TIMEOUT_MINUETS:
+            # print("Not Maximum")
+            return
+        try:
+            # print(f"end session phone: '{open_session.user_id}' id {open_session.id}")
+            open_session.session_active = False
+            db.commit()
+            send_response_using_whatsapp_api(
+                f"השיחה הופסקה עקב חוסר מענה של {MAX_NOT_RESPONDING_TIMEOUT_MINUETS} דקות, על מנת להתחיל שיחה חדשה אנא שלח הודעה",
+                _specific_sendr=open_session.user_id)
+            print("session Delete!")
+        except Exception as er:
+            print(er)
+            continue
+
+
+def schedule_search_for_inactive_sessions():
+    print(f"Searching for sessions over {MAX_NOT_RESPONDING_TIMEOUT_MINUETS} minutes...")
+    db_conn = next(get_db())
+    threading.Timer(TIMER_FOR_SEARCH_OPEN_SESSION_MINUTES, schedule_search_for_inactive_sessions).start()
+    check_for_afk_sessions(db_conn)
+
+
+db = next(get_db())
+# Add your function to the scheduler to run every x minutes
+scheduler.add_job(check_for_afk_sessions, 'interval', minutes=TIMER_FOR_SEARCH_OPEN_SESSION_MINUTES, args=[db])
 
 
 @app.get("/")
@@ -216,23 +252,27 @@ async def verify(request: Request):
 
 
 def check_for_timeout(db, sender):
-    return True
+    """
+    Check if last session of the the user was at least x minutes old
+    return True if yes, False otherwise
+    """
+    return False
     session = db.query(ConversationSession).filter(ConversationSession.user_id == sender,
                                                    ConversationSession.session_active == False).order_by(
         ConversationSession.start_data.desc()).first()
     if session is None:
-        return True
-    diff_time = datetime.datetime.now() - session.start_data
-    seconds_in_day = 24 * 60 * 60
-    minutes, second = divmod(diff_time.days * seconds_in_day + diff_time.seconds, 60)
-    if TIME_PASS_FROM_LAST_SESSION > minutes:
         return False
-    return True
+    now = datetime.now()
+    diff = now - session.start_data
+    minutes = diff.total_seconds() / 60
+    if TIME_PASS_FROM_LAST_SESSION > minutes:
+        return True
+    return False
 
 
 def process_bot_response(db, user_msg: str, button_selected=False) -> str:
     if after_working_hours():
-        print("after_working_hours")
+        print("after working hours")
         send_response_using_whatsapp_api(non_working_hours_msg)
         return non_working_hours_msg
     log = ""
@@ -253,7 +293,7 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
     next_step_conversation_after_increment = ""
     session = check_if_session_exist(db, sender)
     if session is None or session.call_flow_location == 0:
-        if not check_for_timeout(db, sender):
+        if check_for_timeout(db, sender):
             print(f"Please wait '{TIME_PASS_FROM_LAST_SESSION}' min")
             send_response_using_whatsapp_api(
                 f"""אנא המתן אנא המתן '{TIME_PASS_FROM_LAST_SESSION}' דקות לפני הפנייה הבאה""", sender)
@@ -327,13 +367,14 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                 if next_step_conversation_after_increment != str(len(conversation_steps)):
                     return conversation_steps[next_step_conversation_after_increment]
             # Check if conversation reach to last step
-            if next_step_conversation_after_increment == str(len(conversation_steps)):  # 7
+            if next_step_conversation_after_increment == str(len(conversation_steps)):  # 8
                 summary = json.loads(session.convers_step_resp)
                 client_id = session.password.split(";")[1]
                 _phone_number_with_0 = summary['5'].replace('972', '0')
-                data = {"technicianName": f"{_phone_number_with_0} {summary['1']}",
+                # data = {"technicianName": f"{_phone_number_with_0} {summary['1']}",
+                data = {"technicianName": f"{_phone_number_with_0} {summary['6']}",
                         # product name and phone
-                        "kria": f"{summary['6']}\nהמספר ממנו נפתחה הקריאה: {session.user_id.replace('972', '0')}",
+                        "kria": f"{summary['7']}\nהמספר ממנו נפתחה הקריאה: {session.user_id.replace('972', '0')}",
                         # issue details and orig phone number
                         "clientCode": f"{client_id}"}  # client code
                 if len(data["technicianName"]) > 20:
@@ -362,6 +403,53 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
             print("Try again")
             send_response_using_whatsapp_api(message_in_error)
             return conversation_steps[current_conversation_step]
+
+
+def trigger_bot_response_after_wrong_auth():
+    """Trigger bot response after wrong auth."""
+    print(f"Trigger bot response after wrong auth")
+    json_data = {
+        "object": "whatsapp_business_account",
+        "entry": [
+            {
+                "id": "8856996819413533",
+                "changes": [
+                    {
+                        "value": {
+                            "messaging_product": "whatsapp",
+                            "metadata": {
+                                "display_phone_number": "16505553333",
+                                "phone_number_id": "27681414235104944"
+                            },
+                            "contacts": [
+                                {
+                                    "profile": {
+                                        "name": "Kerry Fisher"
+                                    },
+                                    "wa_id": "16315551234"
+                                }
+                            ],
+                            "messages": [
+                                {
+                                    "from": f"{sender}",
+                                    "id": "wamid.ABGGFlCGg0cvAgo-sJQh43L5Pe4W",
+                                    "timestamp": "1603059201",
+                                    "text": {
+                                        "body": "retry login"
+                                    },
+                                    "type": "text"
+                                }
+                            ]
+                        },
+                        "field": "messages"
+                    }
+                ]
+            }
+        ]
+    }
+    headers = {'Content-type': 'application/json', 'Accept': 'application/json'}
+    res = requests.post(f'http://localhost:{PORT}/webhook', json=json.dumps(json_data), headers=headers)
+    print(res)
 
 
 def send_response_using_whatsapp_api(message, debug=False, _specific_sendr=None):
@@ -488,7 +576,7 @@ def check_if_session_exist(db, user_id):
 def after_working_hours():
     # Get Day Number from weekday
     # Todo: remove False
-    return False
+    # return False
     week_num = datetime.today().weekday()
 
     if week_num > 5:
@@ -507,33 +595,6 @@ def after_working_hours():
         print("Now is working hours")
 
     return False
-
-
-def check_for_afk_sessions(db):
-    results = db.query(ConversationSession).filter(ConversationSession.session_active == True).all()
-    print(f"Active session found: '{results}'")
-    for open_session in results:
-        now = datetime.now()
-        diff_time = now - open_session.start_data
-        seconds_in_day = 24 * 60 * 60
-        minutes, second = divmod(diff_time.days * seconds_in_day + diff_time.seconds, 60)
-        if minutes > MAX_NOT_RESPONDING_TIMEOUT_MINUETS:
-            try:
-                print(f"end session phone: '{open_session.user_id}' id {open_session.id}")
-                send_response_using_whatsapp_api("השיחה הופסקה עקב חוסר מענה, על מנת להתחיל שיחה חדשה אנא שלח הודעה",
-                                                 _specific_sendr=open_session.user_id)
-                open_session.session_active = False
-                db.commit()
-                print("session Delete!")
-            except Exception as er:
-                print(er)
-
-
-def schedule_search_for_inactive_sessions():
-    print("Search for opening session..")
-    db_conn = next(get_db())
-    threading.Timer(TIMER_FOR_SEARCH_OPEN_SESSION_SEC, schedule_search_for_inactive_sessions).start()
-    check_for_afk_sessions(db_conn)
 
 
 if __name__ == "__main__":
