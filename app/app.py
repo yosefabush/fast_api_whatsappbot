@@ -193,7 +193,7 @@ async def handle_message_with_request_scheme(request: Request, data: WebhookRequ
                 messaging_events = [msg for msg in entry.get("changes", []) if msg.get("field", None) == "messages"]
                 print(f"total events: '{len(messaging_events)}'")
                 for event in messaging_events:
-                    if event['value'].get('messages', None):
+                    if event['value'].get('messages', None) is None:
                         print(f"event is not a messages")
                         return Response(content="Event is not a messages")
                     type = event['value']['messages'][0].get('type', None)
