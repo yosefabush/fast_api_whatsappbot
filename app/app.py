@@ -575,23 +575,28 @@ def check_if_session_exist(db, user_id):
 
 def after_working_hours():
     # Get Day Number from weekday
+    # weekday: Sunday is 6
+    #          Monday is 0
+    #          tuesday  is 1
+    #          wednesday is 2
+    #          thursday is 3
+    #          friday is 4
+    #          saturday is 5
     # Todo: remove False
     # return False
     week_num = datetime.today().weekday()
 
-    if week_num > 5:
+    if week_num in [4, 5]:
         print("Today is a Weekend")
         return True
     else:
-        # 5 Sat, 6 Sun
-        print("Today is a Weekend")
+        print(f"Today is weekday {week_num}")
 
     current_time = datetime.now(pytz.timezone('Israel'))
     if current_time.hour > WORKING_HOURS_START_END[1] or current_time.hour < WORKING_HOURS_START_END[0]:
         print("Now is NOT working hours")
         return True
     else:
-        # 5 Sat, 6 Sun
         print("Now is working hours")
 
     return False
