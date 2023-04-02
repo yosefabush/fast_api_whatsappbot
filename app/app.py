@@ -190,14 +190,17 @@ async def handle_message_with_request_scheme(request: Request, data: WebhookRequ
         message = "ok"
         if data.object == "whatsapp_business_account":
             for entry in data.entry:
-                messaging_events = [event for event in entry.get("changes", []) if
-                                    event.get("field", None) == "messages"]
+                messaging_events = [msg for msg in entry.get("changes", []) if msg.get("field", None) == "messages"]
                 print(f"total events: '{len(messaging_events)}'")
                 for event in messaging_events:
+                    if event['value'].get('messages', None):
+                        print(f"event is not a messages")
+                        return Response(content="Event is not a messages")
                     type = event['value']['messages'][0].get('type', None)
                     if type is None:
                         print("None type")
-                        return Response(content="None type found", status_code=status.HTTP_400_BAD_REQUEST)
+                        return Response(content="None type found")
+                        # return Response(content="None type found", status_code=status.HTTP_400_BAD_REQUEST)
                     if type == "text":
                         print("text")
                         text = event['value']['messages'][0]['text']['body']
