@@ -24,8 +24,8 @@ VERIFY_TOKEN = os.getenv("VERIFY_TOKEN", default=None)
 PHONE_NUMBER_ID_PROVIDER = os.getenv("NUMBER_ID_PROVIDER", default="104091002619024")
 FACEBOOK_API_URL = 'https://graph.facebook.com/v16.0'
 WHATS_API_URL = 'https://api.whatsapp.com/v3'
-TIMER_FOR_SEARCH_OPEN_SESSION_MINUTES = 3
-MAX_NOT_RESPONDING_TIMEOUT_MINUETS = 5
+TIMER_FOR_SEARCH_OPEN_SESSION_MINUTES = 1
+MAX_NOT_RESPONDING_TIMEOUT_MINUETS = 8
 TIME_PASS_FROM_LAST_SESSION = 2
 if None in [TOKEN, VERIFY_TOKEN]:
     raise Exception(f"Error on env var '{TOKEN, VERIFY_TOKEN}' ")
@@ -333,7 +333,8 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                 session.increment_call_flow(db)
                 next_step_conversation_after_increment = str(session.call_flow_location)
             if current_conversation_step == "2":
-                send_response_using_whatsapp_api("שלום " + session.get_conversation_step_json("1") + "!")
+                # send_response_using_whatsapp_api("שלום " + session.get_conversation_step_json("1") + "!")
+                send_response_using_whatsapp_api(f"שלום '{session.get_conversation_step_json('2')}' !")
                 # show buttons for step 4
                 subject_groups = session.get_all_client_product_and_save_db_subjects(db)
                 return send_interactive_response(conversation_steps[next_step_conversation_after_increment],
@@ -377,7 +378,7 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                 # data = {"technicianName": f"{_phone_number_with_0} {summary['1']}",
                 data = {"technicianName": f"{_phone_number_with_0} {summary['6']}",
                         # product name and phone
-                        "kria": f"{summary['7']}\nהמספר ממנו נפתחה הקריאה: {session.user_id.replace('972', '0')}",
+                        "kria": f"{summary['4']}\n{summary['7']}\nהמספר ממנו נפתחה הקריאה: {session.user_id.replace('972', '0')}",
                         # issue details and orig phone number
                         "clientCode": f"{client_id}"}  # client code
                 if len(data["technicianName"]) > 20:

@@ -162,10 +162,16 @@ class ConversationSession(Base):
                 print(f"Check if user name '{answer}' valid")
             elif case == 2:
                 print(f"Log in user name '{self.get_conversation_step_json('1')}' password '{answer}'")
-                client_id = moses_api.login_whatsapp(self.get_conversation_step_json('1'), answer)
-                if client_id is None:
+                client_data = moses_api.login_whatsapp(self.get_conversation_step_json('1'), answer)
+                if client_data is None:
                     return False
-                self.password = f"{answer};{client_id}"
+                client_name = client_data.get('clientName', None)
+                if client_name is None:
+                    print(f"No clientName!")
+                    self.password = f"{answer};{client_data['UserId']};{None}"
+                else:
+                    print(f"clientName found! {client_name}")
+                    self.password = f"{answer};{client_data['UserId']};{client_data['clientName']}"
                 db.commit()
             elif case == 3:
                 print(f"check if chosen '{answer}' valid")
@@ -212,7 +218,14 @@ class ConversationSession(Base):
     def validate_and_set_answer(self, db, step, response, is_button_selected):
         step = int(step)
         if self.validation_switch_step(db, step, response, is_button_selected):
-            if step == 3 and response == "אחר":
+            if step == 2:
+                client = self.password.split(';')[-1]
+                if client != 'None':
+                    self.set_conversion_step(step, client, db)
+                else:
+                    print(f"Save login name")
+                    self.set_conversion_step(step, response, db)
+            elif step == 3 and response == "אחר":
                 self.set_conversion_step(step, "None", db)
                 self.set_conversion_step(4, "None", db)
                 self.call_flow_location = 4
@@ -298,16 +311,6 @@ class ConversationSession(Base):
 
     def get_conversation_step_json(self, step):
         return json.loads(self.convers_step_resp)[step]
-
-
-class UserSchema(BaseModel):
-    id: int
-    name: str
-    password: str
-    phone: str
-
-    class Config:
-        orm_model = True
 
 
 # Request Models.

@@ -6,9 +6,8 @@ import xml.etree.ElementTree as ET
 
 END_POINT = "https://026430010.co.il/MosesTechWebService/Service1.asmx"
 # encode code
-# PERFIX_USER_ID = 'MTQ='
-# PERFIX_USER_ID = '682'
-PERFIX_USER_ID = 'NDQ4'
+PERFIX_USER_ID = 'Njgy'
+# PERFIX_USER_ID = 'NDQ4'
 PERFIX_PASSWORD = 'NDU2Nzg5'
 
 base64_bytes = PERFIX_USER_ID.encode('ascii')
@@ -96,8 +95,8 @@ def login_whatsapp(user, password):
         root = ET.fromstring(response.content)
         try:
             data = json.loads(root.text)
-            print(f"client id {data}")
-            return data
+            print(f"LoginWhatsapp data: {data['table']}")
+            return data["table"][0]
         except Exception as ex:
             print(f"login_whatsapp Exception {ex}")
             return None
