@@ -9,8 +9,8 @@ from sqlalchemy_utils import database_exists, create_database
 user = os.getenv("MYSQLUSER", default="root")
 password = os.getenv("MYSQLPASSWORD", default="root")
 host = os.getenv("MYSQLHOST", default="localhost")
-db = os.getenv("MYSQLDATABASE", default="moses")
 port = os.getenv("MYSQLPORT", default="3306")
+db = os.getenv("MYSQLDATABASE", default="moses")
 MYSQL_URL = os.getenv("MYSQL_URL", default=None)
 print(f"MYSQL_URL: '{MYSQL_URL}'")
 

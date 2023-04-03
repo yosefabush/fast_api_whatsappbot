@@ -256,10 +256,10 @@ async def verify(request: Request):
 
 def check_for_timeout(db, sender):
     """
-    Check if last session of the the user was at least x minutes old
+    Check if last session of the user was at least x minutes old
     return True if yes, False otherwise
     """
-    return False
+    # return False
     session = db.query(ConversationSession).filter(ConversationSession.user_id == sender,
                                                    ConversationSession.session_active == False).order_by(
         ConversationSession.start_data.desc()).first()
