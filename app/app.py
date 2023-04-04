@@ -376,9 +376,11 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                 client_id = session.password.split(";")[1]
                 _phone_number_with_0 = summary['5'].replace('972', '0')
                 kria_header = f"מספר מדבקה: {summary['4']}" if summary['4'].isdigit() else f"שם מוצר: {summary['4']}"
+                keria_body = summary['7']
+                kria_footer = f"המספר ממנו נפתחה הקריאה: {session.user_id.replace('972', '0')}"
                 data = {"technicianName": f"{_phone_number_with_0} {summary['6']}",
                         # product name and phone
-                        "kria": f"{kria_header}\nהמספר ממנו נפתחה הקריאה: {session.user_id.replace('972', '0')}",
+                        "kria": f"{kria_header}\n{keria_body}\n{kria_footer}",
                         # issue details and orig phone number
                         "clientCode": f"{client_id}"}  # client code
                 if len(data["technicianName"]) > 20:
@@ -389,11 +391,12 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                                    issue_data=data["kria"]
                                    )
                 db.add(new_issue)
-                db.commit()
+                # db.commit()
                 print(f"Issue successfully created! {new_issue}")
                 if moses_api.create_kria(data):
                     print(f"Kria successfully created! {data}")
-                    new_issue.set_issue_status(db, True)
+                    # new_issue.set_issue_status(db, True)
+                    new_issue.issue_sent_status = True
                 else:
                     print(f"Failed to create Kria {data}")
                 print("Conversation ends!")
@@ -458,6 +461,7 @@ def trigger_bot_response_after_wrong_auth():
 
 def send_response_using_whatsapp_api(message, debug=False, _specific_sendr=None):
     """Send a message using the WhatsApp Business API."""
+    # Todo: handle exceptions, after sending message failure, call get incremented should not be incremented
     try:
         print(f"Sending message: '{message}' ")
         url = f"{FACEBOOK_API_URL}/{PHONE_NUMBER_ID_PROVIDER}/messages"
