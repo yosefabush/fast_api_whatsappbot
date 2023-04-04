@@ -293,7 +293,7 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
             db.commit()
         print("All conversation were reset")
         return "All conversation were reset"
-    next_step_conversation_after_increment = ""
+    next_step_after_increment = ""
     session = check_if_session_exist(db, sender)
     if session is None or session.call_flow_location == 0:
         if check_for_timeout(db, sender):
@@ -331,19 +331,18 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
         if is_answer_valid:
             if not button_selected:
                 session.increment_call_flow(db)
-                next_step_conversation_after_increment = str(session.call_flow_location)
+                next_step_after_increment = str(session.call_flow_location)
             if current_conversation_step == "2":
-                # send_response_using_whatsapp_api("שלום " + session.get_conversation_step_json("1") + "!")
-                send_response_using_whatsapp_api(f"שלום '{session.get_conversation_step_json('2')}' !")
-                # show buttons for step 4
+                # send_response_using_whatsapp_api(f"שלום '{session.get_conversation_step_json('2')}' !")
                 subject_groups = session.get_all_client_product_and_save_db_subjects(db)
-                return send_interactive_response(conversation_steps[next_step_conversation_after_increment],
-                                                 subject_groups)
+                message = f"שלום '{session.get_conversation_step_json('2')}' !\n{conversation_steps[next_step_after_increment]}"
+                # show buttons for step 3
+                return send_interactive_response(message, subject_groups)
             elif current_conversation_step in ["3", "4", "5"]:
                 if button_selected:
                     print(f"selected button: '{user_msg}'")
                     session.increment_call_flow(db)
-                    next_step_conversation_after_increment = str(session.call_flow_location)
+                    next_step_after_increment = str(session.call_flow_location)
                 if current_conversation_step == "3":
                     # show buttons for step 4
                     products = session.get_products(db, user_msg)
@@ -352,26 +351,28 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                         for s in products:
                             for k, v in s.items():
                                 products_2.append(k)
-                        return send_interactive_response(conversation_steps[next_step_conversation_after_increment],
+                        return send_interactive_response(conversation_steps[next_step_after_increment],
                                                          products_2)
                     else:
                         print("product return empty")
-                        send_response_using_whatsapp_api(conversation_steps[next_step_conversation_after_increment])
-                        return conversation_steps[next_step_conversation_after_increment]
+                        return send_interactive_response(conversation_steps[next_step_after_increment],
+                                                         ["חזור למספר שלי"])
+                        # send_response_using_whatsapp_api(conversation_steps[next_step_after_increment])
+                        # return conversation_steps[next_step_after_increment]
                     # return "Choose product..."
                 elif current_conversation_step == "4":
-                    return send_interactive_response(conversation_steps[next_step_conversation_after_increment],
+                    return send_interactive_response(conversation_steps[next_step_after_increment],
                                                      ["חזור למספר שלי"])
                 else:
-                    send_response_using_whatsapp_api(conversation_steps[next_step_conversation_after_increment])
-                    return conversation_steps[next_step_conversation_after_increment]
+                    send_response_using_whatsapp_api(conversation_steps[next_step_after_increment])
+                    return conversation_steps[next_step_after_increment]
             else:
-                send_response_using_whatsapp_api(conversation_steps[next_step_conversation_after_increment])
+                send_response_using_whatsapp_api(conversation_steps[next_step_after_increment])
                 # check if is last step
-                if next_step_conversation_after_increment != str(len(conversation_steps)):
-                    return conversation_steps[next_step_conversation_after_increment]
+                if next_step_after_increment != str(len(conversation_steps)):
+                    return conversation_steps[next_step_after_increment]
             # Check if conversation reach to last step
-            if next_step_conversation_after_increment == str(len(conversation_steps)):  # 8
+            if next_step_after_increment == str(len(conversation_steps)):  # 8
                 summary = json.loads(session.convers_step_resp)
                 client_id = session.password.split(";")[1]
                 _phone_number_with_0 = summary['5'].replace('972', '0')
