@@ -380,7 +380,7 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                 kria_footer = f"המספר ממנו נפתחה הקריאה: {session.user_id.replace('972', '0')}"
                 data = {"technicianName": f"{_phone_number_with_0} {summary['6']}",
                         # product name and phone
-                        "kria": f"{kria_header}\n{keria_body}\n{kria_footer}",
+                        "kria": f"{keria_body}\n{kria_header}\n{kria_footer}",
                         # issue details and orig phone number
                         "clientCode": f"{client_id}"}  # client code
                 if len(data["technicianName"]) > 20:
