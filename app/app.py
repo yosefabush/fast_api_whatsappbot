@@ -375,10 +375,10 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                 summary = json.loads(session.convers_step_resp)
                 client_id = session.password.split(";")[1]
                 _phone_number_with_0 = summary['5'].replace('972', '0')
-                # data = {"technicianName": f"{_phone_number_with_0} {summary['1']}",
+                kria_header = f"מספר מדבקה: {summary['4']}" if summary['4'].isdigit() else f"מספר מוצר: {summary['4']}"
                 data = {"technicianName": f"{_phone_number_with_0} {summary['6']}",
                         # product name and phone
-                        "kria": f"{summary['4']}\n{summary['7']}\nהמספר ממנו נפתחה הקריאה: {session.user_id.replace('972', '0')}",
+                        "kria": f"{kria_header}\nהמספר ממנו נפתחה הקריאה: {session.user_id.replace('972', '0')}",
                         # issue details and orig phone number
                         "clientCode": f"{client_id}"}  # client code
                 if len(data["technicianName"]) > 20:
