@@ -105,7 +105,7 @@ def check_for_afk_sessions(db_connection):
             open_session.session_active = False
             db.commit()
             send_response_using_whatsapp_api(
-                f"השיחה הופסקה עקב חוסר מענה של {MAX_NOT_RESPONDING_TIMEOUT_MINUETS} דקות, על מנת להתחיל שיחה חדשה אנא שלח הודעה",
+                f"השיחה הופסקה עקב חוסר מענה דקות, על מנת להתחיל שיחה חדשה אנא שלח הודעה",
                 _specific_sendr=open_session.user_id)
             print("session Delete!")
         except Exception as er:
@@ -375,7 +375,7 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                 summary = json.loads(session.convers_step_resp)
                 client_id = session.password.split(";")[1]
                 _phone_number_with_0 = summary['5'].replace('972', '0')
-                kria_header = f"מספר מדבקה: {summary['4']}" if summary['4'].isdigit() else f"שם מוצר: {summary['4']}"
+                kria_header = f"מספר מדבקה: {summary['4']}" if summary['4'].isdigit() else f"שים לב למוצר אין מדבקה: {summary['4']}"
                 keria_body = summary['7']
                 kria_footer = f"המספר ממנו נפתחה הקריאה: {session.user_id.replace('972', '0')}"
                 data = {"technicianName": f"{_phone_number_with_0} {summary['6']}",
