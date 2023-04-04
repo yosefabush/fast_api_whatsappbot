@@ -73,7 +73,7 @@ def get_sorted_product_by_user_and_password(client_id):
             for key, value in distinct_product_values.items():
                 _language = "en" if 'HEBREW' not in unicodedata.name(key.strip()[0]) else "he"
                 if _language == "en" and key == "Routers":
-                    distinct_product_values['ראוטרים'] = distinct_product_values['Routers']
+                    distinct_product_values['ראוטרים ואינטרנט'] = distinct_product_values['Routers']
                     del distinct_product_values['Routers']
                     break
             return distinct_product_values
