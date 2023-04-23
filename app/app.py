@@ -40,7 +40,7 @@ session_open = False
 conversation = {
     "Greeting": "היי ברוך הבא לבוט של מוזס!\nתודה שפנית אלינו 😊\n"
                 "כדי לפתוח קריאת שירות עלינו לבצע הליך זיהוי קצר,"
-                " בכל שלב תוכלו לרשום לנו יציאה והמערכת תתחיל את השיחה מחדש"
+                " בכל שלב תוכלו לרשום לנו 'יציאה' והמערכת תתחיל את השיחה מחדש"
 }
 WORKING_HOURS_START_END = (8, 17)
 non_working_hours_msg = """שלום, שירות הוואצפ פעיל בימים א'-ה' בשעות 08:00- 17:30. 
@@ -260,6 +260,7 @@ def check_for_timeout(db, sender):
     return True if yes, False otherwise
     """
     # return False
+    print("Checking for timeout to prevent abuse of issues creation..")
     session = db.query(ConversationSession).filter(ConversationSession.user_id == sender,
                                                    ConversationSession.session_active == False).order_by(
         ConversationSession.start_data.desc()).first()
@@ -296,11 +297,12 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
     next_step_after_increment = ""
     session = check_if_session_exist(db, sender)
     if session is None or session.call_flow_location == 0:
-        if check_for_timeout(db, sender):
-            print(f"Please wait '{TIME_PASS_FROM_LAST_SESSION}' min")
-            send_response_using_whatsapp_api(
-                f"""אנא המתן אנא המתן '{TIME_PASS_FROM_LAST_SESSION}' דקות לפני הפנייה הבאה""", sender)
-            return f"""אנא המתן אנא המתן '{TIME_PASS_FROM_LAST_SESSION}' דקות לפני הפנייה הבאה"""
+        # Todo: should enable this in the future
+        # if check_for_timeout(db, sender):
+        #     print(f"Please wait '{TIME_PASS_FROM_LAST_SESSION}' min")
+        #     send_response_using_whatsapp_api(
+        #         f"""אנא המתן אנא המתן '{TIME_PASS_FROM_LAST_SESSION}' דקות לפני הפנייה הבאה""", sender)
+        #     return f"""אנא המתן אנא המתן '{TIME_PASS_FROM_LAST_SESSION}' דקות לפני הפנייה הבאה"""
         print(f"Hi {sender} You are new!:")
         steps_message = ""
         for key, value in conversation_steps.items():
@@ -408,7 +410,13 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
             else:
                 raise Exception("Unknown step after check for end conversation")
         else:
-            print("Try again")
+            print("Invalid response try again")
+            if current_conversation_step == "2":
+                session.session_active = False
+                db.commit()
+                print("Your session end")
+                send_response_using_whatsapp_api(message_in_error)
+                return message_in_error
             send_response_using_whatsapp_api(message_in_error)
             return conversation_steps[current_conversation_step]
 

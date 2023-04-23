@@ -54,14 +54,14 @@ class ConversationSession(Base):
     conversation_steps_in_class = {
         "1": "אנא הזן שם משתמש",
         "2": "אנא הזן סיסמא",
-        "3": "תודה שפנית אלינו, פרטיך נקלטו במערכת, באיזה נושא נוכל להעניק לך שירות?\n(לפתיחת קריאה ללא נושא רשום 'אחר')",
+        "3": "תודה שפנית אלינו פרטיך נקלטו במערכת,\nבאיזה נושא נוכל להעניק לך שירות?\n(לפתיחת קריאה ללא נושא רשום 'אחר')",
         "4": "אנא בחר קוד מוצר",
         "5": "אם ברצונך לחזור למספר אחר אנא הקש את המספר לחזרה",
         "6": "מה שם פותח הקריאה?",
         "7": "נא רשום בקצרה את תיאור הפנייה",
         "8": """תודה רבה על פנייתך, הקריאה הוכנסה למערכת ותטופל בהקדם האפשרי.
 אנא הישאר זמין  📶 📞
-כדי לפתוח בשיחה חדשה ניתן לשלוח הודעה נוספת בעוד כ 2 דקות
+כדי לפתוח בשיחה חדשה ניתן לשלוח הודעה נוספת
 תודה ולהתראות""",
     }
     MAX_LOGING_ATTEMPTS = 3
@@ -256,20 +256,21 @@ class ConversationSession(Base):
             if self.call_flow_location == 1:
                 result = "שם משתמש שגוי אנא נסה שוב"
             elif self.call_flow_location == 2:
-                self.login_attempts += 1
-                hint = f"נסיון {self.login_attempts} מתוך {self.MAX_LOGING_ATTEMPTS}"
-                result = f"שם משתמש או סיסמא שגויים\n אנא נסה שוב ({hint})"
-                # self.call_flow_location = 1
-                db.commit()
-                if self.login_attempts == self.MAX_LOGING_ATTEMPTS:
-                    print("restart session")
-                    # session = db.query(ConversationSession).filter(ConversationSession.id == self.id).first()
-                    self.call_flow_location = 0
-                    self.login_attempts = 0
-                    db.commit()
-                    result = "בשל ריבוי ניסיונות החיבור נכשל, על מנת להמשיך שלח הודעה כדי להתחיל הזדהות מחדש"
-                else:
-                    print(f"login failure number '{self.login_attempts}'")
+                # self.login_attempts += 1
+                # hint = f"נסיון {self.login_attempts} מתוך {self.MAX_LOGING_ATTEMPTS}"
+                # result = f"שם משתמש או סיסמא שגויים\n אנא נסה שוב ({hint})"
+                # # self.call_flow_location = 1
+                # db.commit()
+                # if self.login_attempts == self.MAX_LOGING_ATTEMPTS:
+                #     print("restart session")
+                #     # session = db.query(ConversationSession).filter(ConversationSession.id == self.id).first()
+                #     self.call_flow_location = 0
+                #     self.login_attempts = 0
+                #     db.commit()
+                #     result = "בשל ריבוי ניסיונות החיבור נכשל, על מנת להמשיך שלח הודעה כדי להתחיל הזדהות מחדש"
+                # else:
+                #     print(f"login failure number '{self.login_attempts}'")
+                result = f"לא ניתן להמשיך את הליך ההזדהות, שם משתמש או סיסמא שגויים.\nהשיחה הסתיימה, על מנת לחדש את השיחה אנא שלח הודעה"
             elif self.call_flow_location in [3, 4]:
                 result = "אנא בחר פריטים מהרשימה"
             elif self.call_flow_location == 5:
