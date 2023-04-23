@@ -40,7 +40,7 @@ session_open = False
 conversation = {
     "Greeting": "היי ברוך הבא לבוט של מוזס!\nתודה שפנית אלינו 😊\n"
                 "כדי לפתוח קריאת שירות עלינו לבצע הליך זיהוי קצר,"
-                " בכל שלב תוכלו לרשום לנו 'יציאה' והמערכת תתחיל את השיחה מחדש"
+                " בכל שלב תוכלו לרשום 'יציאה' והמערכת תתחיל את השיחה מחדש"
 }
 WORKING_HOURS_START_END = (8, 17)
 non_working_hours_msg = """שלום, שירות הוואצפ פעיל בימים א'-ה' בשעות 08:00- 17:30. 
@@ -67,7 +67,9 @@ scheduler = BackgroundScheduler()
 def startup():
     print("startup DB create_all..")
     Base.metadata.create_all(bind=engine)
-    print(f"starting SEARCH OPEN SESSION scheduler every ({TIMER_FOR_SEARCH_OPEN_SESSION_MINUTES}) minuets..")
+    print(f"starting scheduler..")
+    # Add your function to the scheduler to run every x minutes
+    scheduler.add_job(check_for_afk_sessions, 'interval', minutes=TIMER_FOR_SEARCH_OPEN_SESSION_MINUTES)
     scheduler.start()
     # schedule_search_for_inactive_sessions()
 
@@ -89,25 +91,24 @@ def get_db():
         db.close()
 
 
-def check_for_afk_sessions(db_connection):
-    # db = next(get_db())
+def check_for_afk_sessions():
+    db_connection = next(get_db())
     results = db_connection.query(ConversationSession).filter(ConversationSession.session_active == True).all()
-    print(f"Active session found: '{len(results)}'")
+    print(f"Active sessions: '{len(results)}' (interval: '{TIMER_FOR_SEARCH_OPEN_SESSION_MINUTES}' minutes)")
     for open_session in results:
         now = datetime.now()
         diff = now - open_session.start_data
         min = diff.total_seconds() / 60
         if min < MAX_NOT_RESPONDING_TIMEOUT_MINUETS:
-            # print("Not Maximum")
             return
         try:
             # print(f"end session phone: '{open_session.user_id}' id {open_session.id}")
             open_session.session_active = False
-            db.commit()
+            db_connection.commit()
             send_response_using_whatsapp_api(
-                f"השיחה הופסקה עקב חוסר מענה דקות, על מנת להתחיל שיחה חדשה אנא שלח הודעה",
+                f"השיחה הופסקה עקב חוסר מענה, על מנת להתחיל שיחה חדשה אנא שלח הודעה",
                 _specific_sendr=open_session.user_id)
-            print("session Delete!")
+            print("session closed!")
         except Exception as er:
             print(er)
             continue
@@ -115,14 +116,8 @@ def check_for_afk_sessions(db_connection):
 
 def schedule_search_for_inactive_sessions():
     print(f"Searching for sessions over {MAX_NOT_RESPONDING_TIMEOUT_MINUETS} minutes...")
-    db_conn = next(get_db())
     threading.Timer(TIMER_FOR_SEARCH_OPEN_SESSION_MINUTES, schedule_search_for_inactive_sessions).start()
-    check_for_afk_sessions(db_conn)
-
-
-db = next(get_db())
-# Add your function to the scheduler to run every x minutes
-scheduler.add_job(check_for_afk_sessions, 'interval', minutes=TIMER_FOR_SEARCH_OPEN_SESSION_MINUTES, args=[db])
+    check_for_afk_sessions()
 
 
 @app.get("/")
