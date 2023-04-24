@@ -99,12 +99,15 @@ def check_for_afk_sessions():
         now = datetime.now()
         diff = now - open_session.start_data
         min = diff.total_seconds() / 60
+        print(f"session opened: '{min}' ago")
         if min < MAX_NOT_RESPONDING_TIMEOUT_MINUETS:
+            print(f"session id: '{open_session.id}' remains '{MAX_NOT_RESPONDING_TIMEOUT_MINUETS - min}' minutes")
             return
         try:
             # print(f"end session phone: '{open_session.user_id}' id {open_session.id}")
             open_session.session_active = False
             db_connection.commit()
+            db_connection.refresh(open_session)
             send_response_using_whatsapp_api(
                 f"השיחה הופסקה עקב חוסר מענה, על מנת להתחיל שיחה חדשה אנא שלח הודעה",
                 _specific_sendr=open_session.user_id)

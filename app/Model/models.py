@@ -73,7 +73,7 @@ class ConversationSession(Base):
     login_attempts = Column(Integer)
     call_flow_location = Column(Integer)
     all_client_products_in_service = Column(LONGTEXT)
-    start_data = Column(DateTime, nullable=False, default=datetime.now())
+    start_data = Column(DateTime, nullable=False, default=datetime.now)
     session_active = Column(Boolean, default=True)
     convers_step_resp = Column(String(1500), unique=False)
 
