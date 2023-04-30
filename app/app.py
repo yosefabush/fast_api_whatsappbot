@@ -490,13 +490,13 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                     else:
                         print("product return empty")
                         return send_interactive_response(conversation_steps[next_step_after_increment],
-                                                         ["חזור למספר שלי"])
+                                                         ["חזור למספר זה"])
                         # send_response_using_whatsapp_api(conversation_steps[next_step_after_increment])
                         # return conversation_steps[next_step_after_increment]
                     # return "Choose product..."
                 elif current_conversation_step == "4":
                     return send_interactive_response(conversation_steps[next_step_after_increment],
-                                                     ["חזור למספר שלי"])
+                                                     ["חזור למספר זה"])
                 else:
                     send_response_using_whatsapp_api(conversation_steps[next_step_after_increment])
                     return conversation_steps[next_step_after_increment]
