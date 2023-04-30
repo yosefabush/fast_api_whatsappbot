@@ -277,7 +277,7 @@ class ConversationSession(Base):
                 result = "מספר הטלפון שהוקש אינו חוקי, אנא נסה שוב"
             else:
                 result = f" ערך לא חוקי '{response}' "
-            print(f"Not valid response {response} for {self.conversation_steps_in_class[str(step)]}")
+            print(f"Not valid response {response} for step {step}")
             return False, result
 
     def set_status(self, db, status):

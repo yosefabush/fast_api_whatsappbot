@@ -1,8 +1,11 @@
 import os
+import time
 import pytz
+import pickle
 import uvicorn
 import requests
 import threading
+from pathlib import Path
 from Model.models import *
 from datetime import datetime
 from json import JSONDecodeError
@@ -13,6 +16,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from requests.structures import CaseInsensitiveDict
 from DatabaseConnection import SessionLocal, engine
+from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 
@@ -27,6 +31,8 @@ WHATS_API_URL = 'https://api.whatsapp.com/v3'
 TIMER_FOR_SEARCH_OPEN_SESSION_MINUTES = 1
 MAX_NOT_RESPONDING_TIMEOUT_MINUETS = 8
 TIME_PASS_FROM_LAST_SESSION = 2
+MINIMUM_SUSPENDED_TIME_SECONDS = 60
+EXCEEDED_REQUEST_REQUEST_LIMIT = 5
 if None in [TOKEN, VERIFY_TOKEN]:
     raise Exception(f"Error on env var '{TOKEN, VERIFY_TOKEN}' ")
 
@@ -50,17 +56,119 @@ non_working_hours_msg = """שלום, שירות הוואצפ פעיל בימים
 
 בברכה,
 מוזס מחשבים."""
+
 # Define a list of predefined conversation steps
 conversation_steps = ConversationSession.conversation_steps_in_class
 
 limiter = Limiter(key_func=get_remote_address)
-# conversation_history = list()
+
 app = FastAPI(debug=False)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Create a new scheduler
 scheduler = BackgroundScheduler()
+
+# origins = [
+#     "https://wa.mosesnet.net",
+#     "https://localhost",
+#     f"http://localhost:{PORT}"
+# ]
+#
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=origins,
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
+
+# Create a dictionary to store the request count and timestamp for each user
+user_requests = dict()
+
+
+def save_file_as_pickle(data, filename, path=os.path.join(os.getcwd(), "dict")):
+    Path(path).mkdir(parents=True, exist_ok=True)
+    file_path = os.path.join(path, str(filename + ".pickle"))
+    # save dictionary to pickle file
+    with open(file_path, "wb") as file:
+        pickle.dump(data, file, pickle.HIGHEST_PROTOCOL)
+
+
+def load_pickle(filename, path=os.path.join(os.getcwd(), "dict")):
+    global user_requests
+    file_path = os.path.join(path, str(filename + ".pickle"))
+    try:
+        # load a pickle file
+        with open(file_path, "rb") as file:
+            user_requests = pickle.load(file)
+        print(f"pickle {user_requests}")
+    except:
+        print("Error loading load_pickle")
+        pass
+
+
+@app.middleware("http")
+async def add_process_time_header(request: Request, call_next):
+    global user_requests
+    print("~" * 100)
+    print(f"Received request: {request.method} {request.url}")
+
+    async def set_body(req: Request):
+        receive_ = await req._receive()
+
+        async def receive():
+            return receive_
+
+        request._receive = receive
+
+    start_time = time.time()
+    await set_body(request)
+    try:
+        data = await request.json()
+        if data['object'] == "whatsapp_business_account":
+            entry = data['entry'][0]
+            messaging_events = [msg for msg in entry.get("changes", []) if msg.get("field", None) == "messages"]
+            event = messaging_events[0]
+            user_id = event['value']['messages'][0]['from']
+            # print(user_id)
+            if user_id in user_requests:
+                # Get the request count and timestamp for the user
+                count, timestamp = user_requests[user_id]
+
+                # Calculate the elapsed time since the last request
+                elapsed_time = time.time() - timestamp
+
+                # If the elapsed time is greater than 60 seconds, reset the count and timestamp
+                if elapsed_time > MINIMUM_SUSPENDED_TIME_SECONDS:
+                    count = 0
+                    timestamp = time.time()
+
+                # If the user has exceeded the request limit (5 requests), raise an HTTPException
+                if count >= EXCEEDED_REQUEST_REQUEST_LIMIT:
+                    response = await suspend_session_after_too_meny_request(user_id)
+                    return Response(content=response, status_code=status.HTTP_429_TOO_MANY_REQUESTS)
+
+                # Increment the request count and update the dictionary
+                count += 1
+                user_requests[user_id] = (count, timestamp)
+            else:
+                # If the user is not in the dictionary, add a new entry with a count of 1 and the current timestamp
+                user_requests[user_id] = (1, time.time())
+            print(f'********** user_requests {user_requests} **********')
+            print("~" * 100)
+            response = await call_next(request)
+            process_time = time.time() - start_time
+            response.headers["X-Process-Time"] = str(process_time)
+            return response
+        else:
+            print("invalid object")
+            return Response(content="invalid object (from middleware)")
+    except:
+        response = await call_next(request)
+        process_time = time.time() - start_time
+        response.headers["X-Process-Time"] = str(process_time)
+        return response
 
 
 @app.on_event("startup")
@@ -71,6 +179,8 @@ def startup():
     # Add your function to the scheduler to run every x minutes
     scheduler.add_job(check_for_afk_sessions, 'interval', minutes=TIMER_FOR_SEARCH_OPEN_SESSION_MINUTES)
     scheduler.start()
+    print(f"loading user_requests from file..")
+    load_pickle("user_requests")
     # schedule_search_for_inactive_sessions()
 
 
@@ -80,6 +190,8 @@ def shutdown():
     engine.dispose()
     print("shutdown scheduler..")
     scheduler.shutdown()
+    print("Write active users to file..")
+    save_file_as_pickle(user_requests, "user_requests")
 
 
 # Dependency
@@ -117,6 +229,27 @@ def check_for_afk_sessions():
             continue
 
 
+async def suspend_session_after_too_meny_request(user):
+    try:
+        print("Suspending session")
+        msg = f"השיחה הופסקה עקב שימוש מגונה, על מנת להתחיל שיחה חדשה אנא שלח הודעה"
+        db_connection = next(get_db())
+        result = db_connection.query(ConversationSession).filter(ConversationSession.user_id == user,
+                                                                 ConversationSession.session_active == True).first()
+        if result is None:
+            msg = f"הנך מושעה אין באפשרותך לשלוח הודעות, אנא המתן מספר דקות"
+            send_response_using_whatsapp_api(msg, _specific_sendr=user)
+            return msg
+        result.session_active = False
+        db_connection.commit()
+        db_connection.refresh(result)
+        send_response_using_whatsapp_api(msg, _specific_sendr=result.user_id)
+        print("too meny request!, session closed!")
+        return msg
+    except Exception as er:
+        print(er)
+
+
 def schedule_search_for_inactive_sessions():
     print(f"Searching for sessions over {MAX_NOT_RESPONDING_TIMEOUT_MINUETS} minutes...")
     threading.Timer(TIMER_FOR_SEARCH_OPEN_SESSION_MINUTES, schedule_search_for_inactive_sessions).start()
@@ -124,7 +257,8 @@ def schedule_search_for_inactive_sessions():
 
 
 @app.get("/")
-async def root():
+@limiter.limit('5/minute')
+async def root(request: Request):
     print("root router 1!")
     return {"Hello": "FastAPI"}
 
@@ -189,7 +323,7 @@ async def handle_message_with_request_scheme(request: Request, data: WebhookRequ
         if data.object == "whatsapp_business_account":
             for entry in data.entry:
                 messaging_events = [msg for msg in entry.get("changes", []) if msg.get("field", None) == "messages"]
-                print(f"total events: '{len(messaging_events)}'")
+                # print(f"total events: '{len(messaging_events)}'")
                 for event in messaging_events:
                     if event['value'].get('messages', None) is None:
                         print(f"event is not a messages")
@@ -200,7 +334,7 @@ async def handle_message_with_request_scheme(request: Request, data: WebhookRequ
                         return Response(content="None type found")
                         # return Response(content="None type found", status_code=status.HTTP_400_BAD_REQUEST)
                     if type == "text":
-                        print("text")
+                        # print("text")
                         text = event['value']['messages'][0]['text']['body']
                         sender = event['value']['messages'][0]['from']
                         message = process_bot_response(db, text)
@@ -376,7 +510,8 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                 summary = json.loads(session.convers_step_resp)
                 client_id = session.password.split(";")[1]
                 _phone_number_with_0 = summary['5'].replace('972', '0')
-                kria_header = f"מספר מדבקה: {summary['4']}" if summary['4'].isdigit() else f"שים לב למוצר אין מדבקה: {summary['4']}"
+                kria_header = f"מספר מדבקה: {summary['4']}" if summary[
+                    '4'].isdigit() else f"שים לב למוצר אין מדבקה: {summary['4']}"
                 keria_body = summary['7']
                 kria_footer = f"המספר ממנו נפתחה הקריאה: {session.user_id.replace('972', '0')}"
                 data = {"technicianName": f"{_phone_number_with_0} {summary['6']}",
@@ -602,17 +737,19 @@ def after_working_hours():
     week_num = datetime.today().weekday()
 
     if week_num in [4, 5]:
-        print("Today is a Weekend")
+        # print("Today is a Weekend")
         return True
     else:
-        print(f"Today is weekday {week_num}")
+        pass
+        # print(f"Today is weekday {week_num}")
 
     current_time = datetime.now(pytz.timezone('Israel'))
     if current_time.hour > WORKING_HOURS_START_END[1] or current_time.hour < WORKING_HOURS_START_END[0]:
-        print("Now is NOT working hours")
+        # print("Now is NOT working hours")
         return True
     else:
-        print("Now is working hours")
+        pass
+        # print("Now is working hours")
 
     return False
 
