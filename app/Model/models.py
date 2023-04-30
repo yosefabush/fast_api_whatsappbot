@@ -198,7 +198,7 @@ class ConversationSession(Base):
                 return found
             elif case == 5:
                 print(f"Check if phone number '{answer}' is valid")
-                if answer != "חזור למספר שלי":
+                if answer != "חזור למספר זה":
                     rule = re.compile(r'(^\+?(972|0)(\-)?0?(([23489]{1}\d{7})|[5]{1}\d{8})$)')
                     if not rule.search(answer):
                         msg = "המספר שהוקש איננו תקין"
