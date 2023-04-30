@@ -241,7 +241,7 @@ class ConversationSession(Base):
                         break
             elif step == 5:
                 # if response == "1":
-                if response == "חזור למספר שלי":
+                if response == "חזור למספר זה":
                     # user_id is phone number in conversation
                     self.set_conversion_step(step, self.user_id, db)
                 else:
