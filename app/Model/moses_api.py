@@ -23,7 +23,7 @@ def create_kria(data):
     print("creating kria...")
     data["id"] = PERFIX_USER_ID
     data["password"] = PERFIX_PASSWORD
-    # return True
+    return True
     url = END_POINT + f"/InsertNewCall"
     headers = {'Content-Type': 'application/x-www-form-urlencoded'}
     print(f"json '{data}' ")

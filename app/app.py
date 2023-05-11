@@ -33,6 +33,7 @@ MAX_NOT_RESPONDING_TIMEOUT_MINUETS = 8
 TIME_PASS_FROM_LAST_SESSION = 2
 MINIMUM_SUSPENDED_TIME_SECONDS = 60
 EXCEEDED_REQUEST_REQUEST_LIMIT = 10
+MAX_ALLOW_PRODUCTS = 10  # LIMITED to 10 products in list by whatsapp api
 if None in [TOKEN, VERIFY_TOKEN]:
     raise Exception(f"Error on env var '{TOKEN, VERIFY_TOKEN}' ")
 
@@ -44,9 +45,10 @@ headers["Accept"] = "application/json"
 headers["Authorization"] = f"Bearer {TOKEN}"
 session_open = False
 conversation = {
-    "Greeting": "היי ברוך הבא לבוט של מוזס!\nתודה שפנית אלינו 😊\n"
-                "כדי לפתוח קריאת שירות עלינו לבצע הליך זיהוי קצר,"
-                " בכל שלב תוכלו לרשום 'יציאה' והמערכת תתחיל את השיחה מחדש"
+    "Greeting": "היי ברוך הבא לבוט השירות של מוזס גרופ!\nתודה שפנית אלינו 😊 אנו כאן על מנת לתת שירות מכל הלב\n"
+                "ניתן להתקשר למשרדנו בשעות הפעילות למספר 02-6430010,\n"
+                "על מנת לפתוח קריאת שירות עלינו לבצע הליך זיהוי קצר,\n"
+                "תוכלו לרשום 'יציאה' להתחלה מחדש"
 }
 WORKING_HOURS_START_END = (8, 17)
 non_working_hours_msg = """שלום, שירות הוואצפ פעיל בימים א'-ה' בשעות 08:00- 17:30. 
@@ -69,19 +71,13 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # Create a new scheduler
 scheduler = BackgroundScheduler()
 
-# origins = [
-#     "https://wa.mosesnet.net",
-#     "https://localhost",
-#     f"http://localhost:{PORT}"
-# ]
-#
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=origins,
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=True
+)
 
 # Create a dictionary to store the request count and timestamp for each user
 user_requests = dict()
@@ -467,8 +463,13 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                 session.increment_call_flow(db)
                 next_step_after_increment = str(session.call_flow_location)
             if current_conversation_step == "2":
-                # send_response_using_whatsapp_api(f"שלום '{session.get_conversation_step_json('2')}' !")
                 subject_groups = session.get_all_client_product_and_save_db_subjects(db)
+                if session.is_product_more_then_max(MAX_ALLOW_PRODUCTS):
+                    print(f"subject_groups more then max {MAX_ALLOW_PRODUCTS}")
+                #     session.set_call_flow(db, 5)
+                #     next_step_after_increment = str(session.call_flow_location)
+                #     message = conversation_steps[next_step_after_increment]
+                #     return send_interactive_response(message)
                 message = f"שלום '{session.get_conversation_step_json('2')}' !\n{conversation_steps[next_step_after_increment]}"
                 # show buttons for step 3
                 return send_interactive_response(message, subject_groups)
@@ -479,12 +480,18 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                     next_step_after_increment = str(session.call_flow_location)
                 if current_conversation_step == "3":
                     # show buttons for step 4
-                    products = session.get_products(db, user_msg)
+                    products = session.get_products(user_msg)
                     if products:
                         products_2 = list()
-                        for s in products:
-                            for k, v in s.items():
+                        for p in products:
+                            for k, v in p.items():
                                 products_2.append(k)
+                        if len(products_2) > MAX_ALLOW_PRODUCTS:
+                            print(f"products more then max {MAX_ALLOW_PRODUCTS}")
+                            session.set_call_flow(db, 5)  # skip on step 4
+                            next_step_after_increment = str(session.call_flow_location)
+                            message = conversation_steps[next_step_after_increment]
+                            return send_interactive_response(message, ["חזור למספר זה"])
                         return send_interactive_response(conversation_steps[next_step_after_increment],
                                                          products_2)
                     else:

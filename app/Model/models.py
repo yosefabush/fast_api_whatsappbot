@@ -59,10 +59,10 @@ class ConversationSession(Base):
         "5": "אם ברצונך לחזור למספר אחר אנא הקש את המספר לחזרה",
         "6": "מה שם פותח הקריאה?",
         "7": "נא רשום בקצרה את תיאור הפנייה",
-        "8": """תודה רבה על פנייתך, הקריאה הוכנסה למערכת ותטופל בהקדם האפשרי.
-אנא הישאר זמין  📶 📞
-כדי לפתוח בשיחה חדשה ניתן לשלוח הודעה נוספת
-תודה ולהתראות""",
+        "8": "תודה רבה על פנייתך, הקריאה הוכנסה למערכת ותטופל בהקדם האפשרי.\n"
+             "אנא הישאר זמין למענה טלפוני חוזר ממחלקת התמיכה 📶 📞\n"
+             "על מנת  לפתוח בשיחה חדשה ניתן לשלוח הודעה נוספת\n"
+             "תודה ולהתראות"
     }
     MAX_LOGING_ATTEMPTS = 3
     __tablename__ = 'conversation'
@@ -99,6 +99,12 @@ class ConversationSession(Base):
         session.call_flow_location += 1
         db.commit()
         print(f"call flow inc to: '{self.call_flow_location}'")
+
+    def set_call_flow(self, db, flow_location):
+        session = db.query(ConversationSession).filter(ConversationSession.id == self.id).first()
+        session.call_flow_location = flow_location
+        db.commit()
+        print(f"call flow SET to: '{self.call_flow_location}'")
 
     def get_conversation_session_id(self):
         return self.user_id
@@ -295,10 +301,16 @@ class ConversationSession(Base):
         print("saved to DB!")
         return list(choices.keys())
 
-    def get_products(self, db, msg):
+    def get_products(self, selected_category):
         choices = json.loads(self.all_client_products_in_service)
-        distinct_values = choices.get(msg, None)
+        distinct_values = choices.get(selected_category, None)
         return distinct_values
+
+    def is_product_more_then_max(self, max_product):
+        choices = json.loads(self.all_client_products_in_service)
+        if len(choices) > max_product:
+            return True
+        return False
 
     def get_all_responses(self):
         return self.convers_step_resp
