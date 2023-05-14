@@ -29,7 +29,7 @@ PHONE_NUMBER_ID_PROVIDER = os.getenv("NUMBER_ID_PROVIDER", default="104091002619
 FACEBOOK_API_URL = 'https://graph.facebook.com/v16.0'
 WHATS_API_URL = 'https://api.whatsapp.com/v3'
 TIMER_FOR_SEARCH_OPEN_SESSION_MINUTES = 1
-MAX_NOT_RESPONDING_TIMEOUT_MINUETS = 8
+MAX_NOT_RESPONDING_TIMEOUT_MINUETS = 5
 TIME_PASS_FROM_LAST_SESSION = 2
 MINIMUM_SUSPENDED_TIME_SECONDS = 60
 EXCEEDED_REQUEST_REQUEST_LIMIT = 10
@@ -48,9 +48,11 @@ conversation = {
     "Greeting": "היי ברוך הבא לבוט השירות של מוזס גרופ!\nתודה שפנית אלינו 😊 אנו כאן על מנת לתת שירות מכל הלב\n"
                 "ניתן להתקשר למשרדנו בשעות הפעילות למספר 02-6430010,\n"
                 "על מנת לפתוח קריאת שירות עלינו לבצע הליך זיהוי קצר,\n"
-                "תוכלו לרשום 'יציאה' להתחלה מחדש"
+                "בכל שלב תוכלו לרשום 'יציאה' להתחלה מחדש\n"
+                "בכפוף לתנאי השרות הניתנים לקריאה כאן\n"
+                "https://go.mosesnet.net/wa"
 }
-WORKING_HOURS_START_END = (8, 17)
+WORKING_HOURS_START_END = (8, 17.5)
 non_working_hours_msg = """שלום, שירות הוואצפ פעיל בימים א'-ה' בשעות 08:00- 17:30. 
 ניתן לפתוח קריאה באתר דרך הקישור הבא 
  026430010.co.il
