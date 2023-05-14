@@ -7,7 +7,7 @@ import requests
 import threading
 from pathlib import Path
 from Model.models import *
-from datetime import datetime
+from datetime import datetime, timedelta
 from json import JSONDecodeError
 from sqlalchemy.orm import Session
 from starlette.responses import JSONResponse
@@ -52,14 +52,17 @@ conversation = {
                 "בכפוף לתנאי השרות הניתנים לקריאה כאן\n"
                 "https://go.mosesnet.net/wa"
 }
-WORKING_HOURS_START_END = (8, 17.5)
-non_working_hours_msg = """שלום, שירות הוואצפ פעיל בימים א'-ה' בשעות 08:00- 17:30. 
+WORKING_HOURS_START_END = (8, 17.5)  # the float number multiplied by 6 - > 17.4 = 17:24 etc..
+start_hours = str(timedelta(hours=WORKING_HOURS_START_END[0])).rsplit(':', 1)[0]
+end_hour = str(timedelta(hours=WORKING_HOURS_START_END[1])).rsplit(':', 1)[0]
+str_working_hours = f"{start_hours} - {end_hour}"
+non_working_hours_msg = """שלום, שירות הוואצפ פעיל בימים א'-ה' בשעות {}. 
 ניתן לפתוח קריאה באתר דרך הקישור הבא 
  026430010.co.il
 ונחזור אליכם בשעות הפעילות
 
 בברכה,
-מוזס מחשבים."""
+מוזס מחשבים.""".format(str_working_hours)
 
 # Define a list of predefined conversation steps
 conversation_steps = ConversationSession.conversation_steps_in_class
