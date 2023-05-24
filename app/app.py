@@ -28,7 +28,7 @@ VERIFY_TOKEN = os.getenv("VERIFY_TOKEN", default=None)
 PHONE_NUMBER_ID_PROVIDER = os.getenv("NUMBER_ID_PROVIDER", default="104091002619024")
 FACEBOOK_API_URL = 'https://graph.facebook.com/v16.0'
 WHATS_API_URL = 'https://api.whatsapp.com/v3'
-TIMER_FOR_SEARCH_OPEN_SESSION_MINUTES = 1
+TIMER_FOR_SEARCH_OPEN_SESSION_MINUTES = 10
 MAX_NOT_RESPONDING_TIMEOUT_MINUETS = 5
 TIME_PASS_FROM_LAST_SESSION = 2
 MINIMUM_SUSPENDED_TIME_SECONDS = 60
@@ -60,7 +60,6 @@ non_working_hours_msg = """שלום, שירות הוואצפ פעיל בימים
 ניתן לפתוח קריאה באתר דרך הקישור הבא 
  026430010.co.il
 ונחזור אליכם בשעות הפעילות
-
 בברכה,
 מוזס מחשבים.""".format(str_working_hours)
 
@@ -205,40 +204,42 @@ def get_db():
 
 
 def check_for_afk_sessions():
-    db_connection = next(get_db())
-    results = db_connection.query(ConversationSession).filter(ConversationSession.session_active == True).all()
-    print(f"Active sessions: '{len(results)}' (interval: '{TIMER_FOR_SEARCH_OPEN_SESSION_MINUTES}' minutes)")
-    for open_session in results:
-        now = datetime.now()
-        diff = now - open_session.start_data
-        min = diff.total_seconds() / 60
-        print(f"session opened: '{min}' ago")
-        if min < MAX_NOT_RESPONDING_TIMEOUT_MINUETS:
-            print(f"session id: '{open_session.id}' remains '{MAX_NOT_RESPONDING_TIMEOUT_MINUETS - min}' minutes")
-            return
-        try:
-            # print(f"end session phone: '{open_session.user_id}' id {open_session.id}")
-            open_session.session_active = False
-            db_connection.commit()
-            db_connection.refresh(open_session)
-            send_response_using_whatsapp_api(
-                f"השיחה הופסקה עקב חוסר מענה, על מנת להתחיל שיחה חדשה אנא שלח הודעה",
-                _specific_sendr=open_session.user_id)
-            print("session closed!")
-        except Exception as er:
-            print(er)
-            continue
-
+    try:
+        db_connection = next(get_db())
+        results = db_connection.query(ConversationSession).filter(ConversationSession.session_active == True).all()
+        print(f"Active sessions: '{len(results)}' (interval: '{TIMER_FOR_SEARCH_OPEN_SESSION_MINUTES}' minutes)")
+        for open_session in results:
+            now = datetime.now()
+            diff = now - open_session.start_data
+            min = diff.total_seconds() / 60
+            print(f"session opened: '{min}' ago")
+            if min < MAX_NOT_RESPONDING_TIMEOUT_MINUETS:
+                print(f"session id: '{open_session.id}' remains '{MAX_NOT_RESPONDING_TIMEOUT_MINUETS - min}' minutes")
+                return
+            try:
+                # print(f"end session phone: '{open_session.user_id}' id {open_session.id}")
+                open_session.session_active = False
+                db_connection.commit()
+                db_connection.refresh(open_session)
+                send_response_using_whatsapp_api(
+                    f"יכול להיות שזה כבר לא זמן נוח עבורך להמשיך את השיחה שלנו..\nכדי שלא נפריע, ניתן לפנות אלינו שוב בשליחת הודעה כשמתאפשר לך,\nכאן או בכל אחד מערוצי התקשורת שלנו, המשך יום נעים 😊",
+                    _specific_sendr=open_session.user_id)
+                print("session closed!")
+            except Exception as er:
+                print(er)
+                continue
+    except Exception:
+        pass
 
 async def suspend_session_after_too_meny_request(user):
     try:
         print("Suspending session")
-        msg = f"השיחה הופסקה עקב שימוש מגונה, על מנת להתחיל שיחה חדשה אנא שלח הודעה"
+        msg = f"יכול להיות שזה כבר לא זמן נוח עבורך להמשיך את השיחה שלנו..\nכדי שלא נפריע, ניתן לפנות אלינו שוב בשליחת הודעה כשמתאפשר לך,\n כאן או בכל אחד מערוצי התקשורת שלנו, nהמשך יום נעים 😊"
         db_connection = next(get_db())
         result = db_connection.query(ConversationSession).filter(ConversationSession.user_id == user,
                                                                  ConversationSession.session_active == True).first()
         if result is None:
-            msg = f"הנך מושעה אין באפשרותך לשלוח הודעות, אנא המתן מספר דקות"
+            msg = f"אין באפשרותך לשלוח הודעות, אנא המתן מספר דקות"
             send_response_using_whatsapp_api(msg, _specific_sendr=user)
             return msg
         result.session_active = False
