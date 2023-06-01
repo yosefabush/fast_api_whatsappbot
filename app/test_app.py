@@ -10,6 +10,7 @@ client = TestClient(app=app)
 
 
 def test_root():
+    print("test root")
     response = client.get("/")
     assert response.status_code == status.HTTP_200_OK
     assert response.json() == {"Hello": "FastAPI"}
