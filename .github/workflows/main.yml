@@ -26,7 +26,6 @@ jobs:
         } else {
           echo "::set-output name=modified::false"
         }
-      shell: pwsh
 
     - name: Configure venv changes & Install dependencies & Activate venv
       run: |
