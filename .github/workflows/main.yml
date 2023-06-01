@@ -20,7 +20,12 @@ jobs:
     - name: Check if requirements.txt modified
       id: check_requirements
       run: |
-        git diff --quiet HEAD^ HEAD -- requirements.txt || echo "::set-output name=modified::true"
+        git diff --quiet HEAD^ HEAD -- requirements.txt
+        if [ $? -ne 0 ]; then
+          echo "::set-output name=modified::true"
+        else
+          echo "::set-output name=modified::false"
+        fi
 
     - name: Configure venv changes & Install dependencies & Activate venv
       run: |
