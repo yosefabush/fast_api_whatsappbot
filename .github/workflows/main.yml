@@ -20,7 +20,7 @@ jobs:
     - name: Check if requirements modified
       id: check_requirements
       run: |
-        git diff --quiet HEAD^ HEAD -- requirements.txt
+        git diff --no-index --quiet HEAD^ HEAD requirements.txt
         if ($LASTEXITCODE -ne 0) {
           echo "modified=true" >> $GITHUB_OUTPUT
         } else {
