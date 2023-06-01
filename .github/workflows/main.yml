@@ -11,7 +11,7 @@ on:
 #A workflow job running sequentially
 jobs:
   build:
-    runs-on: windows
+    runs-on: moses1
     steps:
     - name: Install dependencies
       run: echo 'build done'
