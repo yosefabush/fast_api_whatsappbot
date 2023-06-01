@@ -1,17 +1,54 @@
-#main.yml
-#This workflow will install Python dependencies
-#and Deploy the FastAPI app to Server
+# This workflow will install Python dependencies
+# and deploy the FastAPI app to the server
 name: build
 
-on: 
-  #Trigger the workflow on a push event to the master branch only
-  push: 
+on:
+  # Trigger the workflow on a push event to the main branch only
+  push:
     branches: ["main"]
 
-#A workflow job running sequentially
+# A workflow job running sequentially
 jobs:
   build:
     runs-on: moses1
     steps:
-    - name: Install dependencies
-      run: echo 'build done'
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.10.4
+
+    - name: Check if requirements.txt modified
+      id: check_requirements
+      run: |
+        git diff --quiet HEAD^ HEAD -- requirements.txt || echo "::set-output name=modified::true"
+
+    - name: Configure venv changes & Install dependencies & Activate venv
+      run: |
+        python -m pip install --upgrade pip
+        if exist .\venv\ (
+          if [[ "${{ steps.check_requirements.outputs.modified }}" == "true" ]]; then
+            echo "requirements modified! deleting venv..."
+            # rm -rf venv  # Remove existing venv directory
+
+            echo "Creating venv after deleting.. "
+            # python -m venv venv  # Create a virtual environment
+            echo "Activating venv .. "
+            # .\venv\Scripts\Activate.bat  # Activate the virtual environment
+            echo "installing dependencies .. "
+            # pip install -r requirements.txt  # If you have a requirements.txt file
+          else
+            echo "No need to change venv.. "
+          fi
+        ) else (
+          echo "Creating first venv.. "
+          # python -m venv venv  # Create a virtual environment
+          echo "Activating venv .. "
+          # .\venv\Scripts\Activate.bat  # Activate the virtual environment
+          echo "installing dependencies .. "
+          # pip install -r requirements.txt  # If you have a requirements.txt file
+        )
+
+    - name: Run app
+      run: |
+        echo "Run app.. "
+        python app.py
