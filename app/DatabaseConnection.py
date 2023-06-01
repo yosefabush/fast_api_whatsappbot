@@ -1,9 +1,11 @@
+from dotenv import load_dotenv
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy_utils import database_exists, create_database
 
+load_dotenv()
 user = os.getenv("MYSQLUSER", default="root")
 password = os.getenv("MYSQLPASSWORD", default="root")
 host = os.getenv("MYSQLHOST", default="localhost")

@@ -1,3 +1,4 @@
+from dotenv import load_dotenv
 import os
 import time
 import pytz
@@ -21,6 +22,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 
 requests.packages.urllib3.disable_warnings()
+load_dotenv()
 
 PORT = os.getenv("PORT", default=8000)
 TOKEN = os.getenv('TOKEN', default=None)
