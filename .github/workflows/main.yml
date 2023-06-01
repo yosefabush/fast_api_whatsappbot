@@ -1,0 +1,17 @@
+#main.yml
+#This workflow will install Python dependencies
+#and Deploy the FastAPI app to Server
+name: build
+
+on: 
+  #Trigger the workflow on a push event to the master branch only
+  push: 
+    branches: ["main"]
+
+#A workflow job running sequentially
+jobs:
+  build:
+    runs-on: windows
+    steps:
+    - name: Install dependencies
+      run: echo 'build done'
