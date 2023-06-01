@@ -112,7 +112,7 @@ def load_pickle(filename, path=os.path.join(os.getcwd(), "dict")):
 async def add_process_time_header(request: Request, call_next):
     global user_requests
     print("~" * 100)
-    print(f"Received request: {request.method} {request.url}")
+    print(f"Received request inside middleware: {request.method} {request.url}")
 
     async def set_body(req: Request):
         receive_ = await req._receive()
