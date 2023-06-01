@@ -17,15 +17,15 @@ jobs:
     #   with:
     #     python-version: "3.10.4"
 
-    - name: Check if requirements modified
-      id: check_requirements
-      run: |
-        git diff --no-index --quiet HEAD^ HEAD requirements.txt
-        if ($LASTEXITCODE -ne 0) {
-          echo "modified=true" >> $GITHUB_OUTPUT
-        } else {
-          echo "modified=false" >> $GITHUB_OUTPUT
-        }
+#     - name: Check if requirements modified
+#       id: check_requirements
+#       run: |
+#         git diff --no-index --quiet HEAD^ HEAD requirements.txt
+#         if ($LASTEXITCODE -ne 0) {
+#           echo "modified=true" >> $GITHUB_OUTPUT
+#         } else {
+#           echo "modified=false" >> $GITHUB_OUTPUT
+#         }
 
     - name: Configure venv changes & Install dependencies & Activate venv
       run: |
