@@ -22,9 +22,9 @@ jobs:
       run: |
         git diff --quiet HEAD^ HEAD -- requirements.txt
         if ($LASTEXITCODE -ne 0) {
-          run: echo "modified=true" >> $GITHUB_OUTPUT
+          echo "modified=true" >> $GITHUB_OUTPUT
         } else {
-          run: echo "modified=false" >> $GITHUB_OUTPUT
+          echo "modified=false" >> $GITHUB_OUTPUT
         }
 
     - name: Configure venv changes & Install dependencies & Activate venv
