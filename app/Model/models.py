@@ -1,16 +1,22 @@
+import os
 import re
 import json
 from typing import List
-from datetime import datetime
+from dotenv import load_dotenv
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from datetime import datetime, timedelta
 from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Boolean, Column, Integer, String, Text, DateTime
 
 from Model import moses_api
-
+load_dotenv()
 Base = declarative_base()
+WORKING_HOURS_START_END = (float(os.getenv('START_TIME', default=None)), float(os.getenv('END_TIME', default=None)))
+start_hours = str(timedelta(hours=WORKING_HOURS_START_END[0])).rsplit(':', 1)[0]
+end_hour = str(timedelta(hours=WORKING_HOURS_START_END[1])).rsplit(':', 1)[0]
+str_working_hours = f"{start_hours} - {end_hour}"
 
 
 class User(Base):
@@ -52,17 +58,17 @@ class Issues(Base):
 
 class ConversationSession(Base):
     conversation_steps_in_class = {
-        "1": "אנא הזן שם משתמש",
-        "2": "אנא הזן סיסמא",
-        "3": "תודה שפנית אלינו פרטיך נקלטו במערכת,\nבאיזה נושא נוכל להעניק לך שירות?\n(לפתיחת קריאה ללא נושא רשום 'אחר')",
-        "4": "אנא בחר קוד מוצר",
-        "5": "אם ברצונך לחזור למספר אחר אנא הקש את המספר לחזרה",
+        "1": "אנא הזינו שם משתמש",
+        "2": "אנא הזינו סיסמא",
+        "3": "תודה שפנית אלינו פרטיך נקלטו במערכת\nבאיזה נושא נוכל להעניק לך שירות?\n(לפתיחת קריאה ללא נושא רשום 'אחר')",
+        "4": "אנא בחרו קוד מוצר",
+        "5": "אם ברצונכם לחזור למספר אחר אנא הקישו כעת את המספר לחזרה",
         "6": "מה שם פותח הקריאה?",
-        "7": "נא רשום בקצרה את תיאור הפנייה",
-        "8": "תודה רבה על פנייתך, הקריאה הוכנסה למערכת ותטופל בהקדם האפשרי.\n"
-             "אנא הישאר זמין למענה טלפוני חוזר ממחלקת התמיכה 📶 📞\n"
-             "על מנת  לפתוח בשיחה חדשה ניתן לשלוח הודעה נוספת\n"
-             "תודה ולהתראות"
+        "7": "נא רשמו בקצרה את תיאור הפנייה",
+        "8": "תודה רבה על פנייתכם!\n הקריאה נכנסה למערכת שלנו  ותטופל בהקדם האפשרי\n"
+             "אנא הישארו זמינים למענה טלפוני חוזר ממחלקת התמיכה 📞\n"
+             "על מנת  לפתוח קריאות שירות נוספת שלחו אלינו הודעה חדשה\n"
+             "המשך יום טוב!"
     }
     MAX_LOGING_ATTEMPTS = 3
     __tablename__ = 'conversation'
@@ -260,7 +266,7 @@ class ConversationSession(Base):
             return True, result
         else:
             if self.call_flow_location == 1:
-                result = "שם משתמש שגוי אנא נסה שוב"
+                result = "שם משתמש שגוי אנא נסו שוב"
             elif self.call_flow_location == 2:
                 # self.login_attempts += 1
                 # hint = f"נסיון {self.login_attempts} מתוך {self.MAX_LOGING_ATTEMPTS}"
@@ -276,11 +282,11 @@ class ConversationSession(Base):
                 #     result = "בשל ריבוי ניסיונות החיבור נכשל, על מנת להמשיך שלח הודעה כדי להתחיל הזדהות מחדש"
                 # else:
                 #     print(f"login failure number '{self.login_attempts}'")
-                result = f"לא ניתן להמשיך את הליך ההזדהות, שם משתמש או סיסמא שגויים.\nהשיחה הסתיימה, על מנת לחדש את השיחה אנא שלח הודעה"
+                result = f"לצערינו לא ניתן להמשיך את הליך ההזדהות 😌\nרוצים לנסות שוב? שלחו הודעה נוספת\n\nאם אין לכם פרטים תוכלו ליצור קשר עם שירות הלקוחות בטלפון או בwhatsapp במספר 02-6430010 ולקבל פרטי גישה עדכניים, שירות הלקוחות זמין בימים א-ה בין השעות {str_working_hours}"
             elif self.call_flow_location in [3, 4]:
-                result = "אנא בחר פריטים מהרשימה"
+                result = "אנא בחרו פריטים מהרשימה"
             elif self.call_flow_location == 5:
-                result = "מספר הטלפון שהוקש אינו חוקי, אנא נסה שוב"
+                result = "מספר הטלפון שהוקש אינו חוקי, אנא נסו שוב"
             else:
                 result = f" ערך לא חוקי '{response}' "
             print(f"Not valid response {response} for step {step}")

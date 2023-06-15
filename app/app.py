@@ -31,7 +31,7 @@ PHONE_NUMBER_ID_PROVIDER = os.getenv("NUMBER_ID_PROVIDER", default="104091002619
 FACEBOOK_API_URL = 'https://graph.facebook.com/v16.0'
 WHATS_API_URL = 'https://api.whatsapp.com/v3'
 TIMER_FOR_SEARCH_OPEN_SESSION_MINUTES = 10
-MAX_NOT_RESPONDING_TIMEOUT_MINUETS = 5
+MAX_NOT_RESPONDING_TIMEOUT_MINUETS = 4
 TIME_PASS_FROM_LAST_SESSION = 2
 MINIMUM_SUSPENDED_TIME_SECONDS = 60
 EXCEEDED_REQUEST_REQUEST_LIMIT = 10
@@ -47,30 +47,35 @@ headers["Accept"] = "application/json"
 headers["Authorization"] = f"Bearer {TOKEN}"
 session_open = False
 conversation = {
-    "Greeting": "היי ברוך הבא לבוט השירות של מוזס גרופ!\nתודה שפנית אלינו 😊 אנו כאן על מנת לתת שירות מכל הלב\n"
+    "Greeting": "הי! ברוכים הבאים לבוט השירות של קבוצת מוזס!\n תודה שפנית אלינו 😊\n אנו כאן כדי לעזור!\n"
                 "ניתן להתקשר למשרדנו בשעות הפעילות למספר 02-6430010,\n"
                 "על מנת לפתוח קריאת שירות עלינו לבצע הליך זיהוי קצר,\n"
-                "בכל שלב תוכלו לרשום 'יציאה' להתחלה מחדש\n"
-                "בכפוף לתנאי השרות הניתנים לקריאה כאן\n"
-                "https://go.mosesnet.net/wa"
+                "בכל שלב תוכלו לרשום 'יציאה' להתחלה מחדש\n\n"
+                "אם בא לכם לדבר עם נציג אנושי תמיד תוכלו לחייג לשירות הלקוחות בטלפון 02-6430010\n\n"
+                "*תנאי שירות https://go.mosesnet.net/wa"
+
 }
-WORKING_HOURS_START_END = (8, 17.5)  # the float number multiplied by 6 - > 17.4 = 17:24 etc..
+WORKING_HOURS_START_END = (float(os.getenv('START_TIME', default=None)), float(
+    os.getenv('END_TIME', default=None)))  # the float number multiplied by 6 - > 17.4 = 17:24 etc..
 start_hours = str(timedelta(hours=WORKING_HOURS_START_END[0])).rsplit(':', 1)[0]
 end_hour = str(timedelta(hours=WORKING_HOURS_START_END[1])).rsplit(':', 1)[0]
 str_working_hours = f"{start_hours} - {end_hour}"
-non_working_hours_msg = """שלום, שירות הוואצפ פעיל בימים א'-ה' בשעות {}. 
-ניתן לפתוח קריאה באתר דרך הקישור הבא 
- 026430010.co.il
-ונחזור אליכם בשעות הפעילות
-בברכה,
-מוזס מחשבים.""".format(str_working_hours)
+non_working_hours_msg = """הי!\n    
+                            פספסנו אותך :(\n
+שירות הוואצפ פעיל בימים א'-ה' בשעות {}\n                            
+                            \nניתן לפתוח קריאה באתר השירות בכתובת 026430010.co.il
+                            \nונחזור אליכם בשעות הפעילות
+                            בברכה,\n
+קבוצת מוזס""".format(str_working_hours)
 
 # Define a list of predefined conversation steps
 conversation_steps = ConversationSession.conversation_steps_in_class
 
 limiter = Limiter(key_func=get_remote_address)
 
-app = FastAPI(debug=False)
+# to enble API swagger docs
+# app = FastAPI(debug=False)
+app = FastAPI(docs_url=None, redoc_url=None)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -232,6 +237,7 @@ def check_for_afk_sessions():
                 continue
     except Exception:
         pass
+
 
 async def suspend_session_after_too_meny_request(user):
     try:
