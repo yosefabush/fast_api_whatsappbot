@@ -186,6 +186,9 @@ class ConversationSession(Base):
                     self.password = f"{answer};{client_data['UserId']};{client_data['clientName']}"
                 db.commit()
             elif case == 3:
+                if self.all_client_products_in_service is None:
+                    print(f"no product found")
+                    return False
                 print(f"check if chosen '{answer}' valid")
                 choices = json.loads(self.all_client_products_in_service)
                 print(f"subjects {list(choices.keys())}")
@@ -268,23 +271,12 @@ class ConversationSession(Base):
             if self.call_flow_location == 1:
                 result = "שם משתמש שגוי אנא נסו שוב"
             elif self.call_flow_location == 2:
-                # self.login_attempts += 1
-                # hint = f"נסיון {self.login_attempts} מתוך {self.MAX_LOGING_ATTEMPTS}"
-                # result = f"שם משתמש או סיסמא שגויים\n אנא נסה שוב ({hint})"
-                # # self.call_flow_location = 1
-                # db.commit()
-                # if self.login_attempts == self.MAX_LOGING_ATTEMPTS:
-                #     print("restart session")
-                #     # session = db.query(ConversationSession).filter(ConversationSession.id == self.id).first()
-                #     self.call_flow_location = 0
-                #     self.login_attempts = 0
-                #     db.commit()
-                #     result = "בשל ריבוי ניסיונות החיבור נכשל, על מנת להמשיך שלח הודעה כדי להתחיל הזדהות מחדש"
-                # else:
-                #     print(f"login failure number '{self.login_attempts}'")
                 result = f"לצערינו לא ניתן להמשיך את הליך ההזדהות 😌\nרוצים לנסות שוב? שלחו הודעה נוספת\n\nאם אין לכם פרטים תוכלו ליצור קשר עם שירות הלקוחות בטלפון או בwhatsapp במספר 02-6430010 ולקבל פרטי גישה עדכניים, שירות הלקוחות זמין בימים א-ה בין השעות {str_working_hours}"
             elif self.call_flow_location in [3, 4]:
-                result = "אנא בחרו פריטים מהרשימה"
+                if self.all_client_products_in_service is None:
+                    result = "אין פריטים!"
+                else:
+                    result = "אנא בחרו פריטים מהרשימה"
             elif self.call_flow_location == 5:
                 result = "מספר הטלפון שהוקש אינו חוקי, אנא נסו שוב"
             else:
@@ -300,7 +292,8 @@ class ConversationSession(Base):
     def get_all_client_product_and_save_db_subjects(self, db):
         choices = moses_api.get_sorted_product_by_user_and_password(self.password.split(";")[1])
         if choices is None:
-            raise Exception("get_all_client_product error (check user password and client Id)")
+            print("get_all_client_product error (check user password and client Id or user does not have products)")
+            return None
         print(f"Allowed values: '{choices}'")
         self.all_client_products_in_service = json.dumps(choices)
         db.commit()

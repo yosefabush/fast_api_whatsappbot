@@ -44,7 +44,7 @@ def get_sorted_product_by_user_and_password(client_id):
         root = ET.fromstring(response.content)
         # data = json.loads(root.text)
         try:
-            data = json.loads(root.text)
+            data = json.loads(root.text, strict=False)
             # return data["table"]
             # Group all products by: {category name: [value_number or value_string]}
             distinct_product_values = dict()

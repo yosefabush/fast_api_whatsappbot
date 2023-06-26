@@ -46,27 +46,27 @@ headers = CaseInsensitiveDict()
 headers["Accept"] = "application/json"
 headers["Authorization"] = f"Bearer {TOKEN}"
 session_open = False
+
+WORKING_HOURS_START_END = (float(os.getenv('START_TIME', default=None)), float(
+    os.getenv('END_TIME', default=None)))  # the float number multiplied by 6 - > 17.4 = 17:24 etc..
+start_hours = str(timedelta(hours=WORKING_HOURS_START_END[0])).rsplit(':', 1)[0]
+end_hour = str(timedelta(hours=WORKING_HOURS_START_END[1])).rsplit(':', 1)[0]
+str_working_hours = f"{start_hours} - {end_hour}"
+non_working_hours_msg = """שלום, שירותי התמיכה פתוחים בימים א-ה בין השעות {}\n    
+                            כאן ניתן לפתוח קריאה ונחזור אליכם בזמני הפעילות.\n\n
+במידה והנך מעונין בקריאת חרום מעבר לזמני הפעילות יש לפתוח קריאה דרך האתר בלבד\n בכתובת https://026430010.co.il/                                
+""".format(str_working_hours)
+
 conversation = {
     "Greeting": "הי! ברוכים הבאים לבוט השירות של קבוצת מוזס!\n תודה שפנית אלינו 😊\n אנו כאן כדי לעזור!\n"
                 "ניתן להתקשר למשרדנו בשעות הפעילות למספר 02-6430010,\n"
                 "על מנת לפתוח קריאת שירות עלינו לבצע הליך זיהוי קצר,\n"
                 "בכל שלב תוכלו לרשום 'יציאה' להתחלה מחדש\n\n"
                 "אם בא לכם לדבר עם נציג אנושי תמיד תוכלו לחייג לשירות הלקוחות בטלפון 02-6430010\n\n"
-                "*תנאי שירות https://go.mosesnet.net/wa"
+                "*תנאי שירות https://go.mosesnet.net/wa",
+    "Greeting_after_working_hours": non_working_hours_msg
 
 }
-WORKING_HOURS_START_END = (float(os.getenv('START_TIME', default=None)), float(
-    os.getenv('END_TIME', default=None)))  # the float number multiplied by 6 - > 17.4 = 17:24 etc..
-start_hours = str(timedelta(hours=WORKING_HOURS_START_END[0])).rsplit(':', 1)[0]
-end_hour = str(timedelta(hours=WORKING_HOURS_START_END[1])).rsplit(':', 1)[0]
-str_working_hours = f"{start_hours} - {end_hour}"
-non_working_hours_msg = """הי!\n    
-                            פספסנו אותך :(\n
-שירות הוואצפ פעיל בימים א'-ה' בשעות {}\n                            
-                            \nניתן לפתוח קריאה באתר השירות בכתובת 026430010.co.il
-                            \nונחזור אליכם בשעות הפעילות
-                            בברכה,\n
-קבוצת מוזס""".format(str_working_hours)
 
 # Define a list of predefined conversation steps
 conversation_steps = ConversationSession.conversation_steps_in_class
@@ -92,6 +92,8 @@ app.add_middleware(
 
 # Create a dictionary to store the request count and timestamp for each user
 user_requests = dict()
+
+after_working_hours_flag = False
 
 
 def save_file_as_pickle(data, filename, path=os.path.join(os.getcwd(), "dict")):
@@ -162,7 +164,7 @@ async def add_process_time_header(request: Request, call_next):
             else:
                 # If the user is not in the dictionary, add a new entry with a count of 1 and the current timestamp
                 user_requests[user_id] = (1, time.time())
-            print(f'********** user_requests {user_requests} **********')
+            # print(f'********** user_requests {user_requests} **********')
             print("~" * 100)
             response = await call_next(request)
             process_time = time.time() - start_time
@@ -417,17 +419,18 @@ def check_for_timeout(db, sender):
 
 
 def process_bot_response(db, user_msg: str, button_selected=False) -> str:
-    if after_working_hours():
-        print("after working hours")
-        send_response_using_whatsapp_api(non_working_hours_msg)
-        return non_working_hours_msg
-    log = ""
-    if user_msg in ["אדמין", "servercheck"]:
-        created_issues_history = db.query(Issues).filter(Issues.issue_sent_status == True).all()
-        for issue in created_issues_history:
-            log += f"Conversation ID: {issue.conversation_id} Sent message: {issue.issue_data}\n"
-        send_response_using_whatsapp_api(log)
-        return log
+    after_working_hours()
+    # if after_working_hours():
+    #     print("after working hours")
+    #     send_response_using_whatsapp_api(non_working_hours_msg)
+    #     return non_working_hours_msg
+    # log = ""
+    # if user_msg in ["אדמין", "servercheck"]:
+    #     created_issues_history = db.query(Issues).filter(Issues.issue_sent_status == True).all()
+    #     for issue in created_issues_history:
+    #         log += f"Conversation ID: {issue.conversation_id} Sent message: {issue.issue_data}\n"
+    #     send_response_using_whatsapp_api(log)
+    #     return log
     if user_msg.lower() in ["reset"]:
         conversation_history = db.query(ConversationSession).filter(ConversationSession.session_active == True).all()
         for session in conversation_history:
@@ -439,19 +442,17 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
     next_step_after_increment = ""
     session = check_if_session_exist(db, sender)
     if session is None or session.call_flow_location == 0:
-        # Todo: should enable this in the future
-        # if check_for_timeout(db, sender):
-        #     print(f"Please wait '{TIME_PASS_FROM_LAST_SESSION}' min")
-        #     send_response_using_whatsapp_api(
-        #         f"""אנא המתן אנא המתן '{TIME_PASS_FROM_LAST_SESSION}' דקות לפני הפנייה הבאה""", sender)
-        #     return f"""אנא המתן אנא המתן '{TIME_PASS_FROM_LAST_SESSION}' דקות לפני הפנייה הבאה"""
         print(f"Hi {sender} You are new!:")
         steps_message = ""
         for key, value in conversation_steps.items():
             steps_message += f"{value} - {key}\n"
         print(f"{steps_message}")
 
-        send_response_using_whatsapp_api(conversation["Greeting"])
+        if after_working_hours_flag:
+            send_response_using_whatsapp_api(conversation["Greeting_after_working_hours"])
+        else:
+            send_response_using_whatsapp_api(conversation["Greeting"])
+
         # Handling session after restart dou to max login attempts
         if session is None:
             session = ConversationSession(user_id=sender, db=db)
@@ -462,7 +463,6 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
         return conversation_steps[str(session.call_flow_location)]
     else:
         if user_msg.lower() in ["יציאה"]:
-            # session.set_status(db, False)
             session.session_active = False
             db.commit()
             print("Your session end")
@@ -476,15 +476,27 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
             if not button_selected:
                 session.increment_call_flow(db)
                 next_step_after_increment = str(session.call_flow_location)
-            if current_conversation_step == "2":
+            if current_conversation_step == "2":  # log in
                 subject_groups = session.get_all_client_product_and_save_db_subjects(db)
-                if session.is_product_more_then_max(MAX_ALLOW_PRODUCTS):
-                    print(f"subject_groups more then max {MAX_ALLOW_PRODUCTS}")
-                #     session.set_call_flow(db, 5)
-                #     next_step_after_increment = str(session.call_flow_location)
-                #     message = conversation_steps[next_step_after_increment]
-                #     return send_interactive_response(message)
-                message = f"שלום '{session.get_conversation_step_json('2')}' !\n{conversation_steps[next_step_after_increment]}"
+                if subject_groups is None:
+                    message = f"שלום '{session.get_conversation_step_json('2')}' !"
+                    send_response_using_whatsapp_api(message)
+                    print("\nאין מוצרים!")
+                    session.set_call_flow(db, 5)
+                    next_step_after_increment = str(session.call_flow_location)
+                    message = conversation_steps[next_step_after_increment]
+                    return send_interactive_response(message, ["חזור למספר זה"])
+                    # message += "\nאין מוצרים!"
+                    # session.session_active = False
+                    # db.commit()
+                    # print("Your session end")
+                    # send_response_using_whatsapp_api(message)
+                    # send_response_using_whatsapp_api("השיחה הסתיימה, על מנת לחדש את השיחה אנא שלח הודעה")
+                    # return f"השיחה הסתיימה, על מנת לחדש את השיחה אנא שלח הודעה\n{message}"
+                else:
+                    if session.is_product_more_then_max(MAX_ALLOW_PRODUCTS):
+                        print(f"subject_groups more then max {MAX_ALLOW_PRODUCTS}")
+                    message = f"שלום '{session.get_conversation_step_json('2')}' !\n{conversation_steps[next_step_after_increment]}"
                 # show buttons for step 3
                 return send_interactive_response(message, subject_groups)
             elif current_conversation_step in ["3", "4", "5"]:
@@ -550,6 +562,7 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                 db.add(new_issue)
                 # db.commit()
                 print(f"Issue successfully created! {new_issue}")
+                data["notePayment"] = f"נכנס מהוואצפ על ידי הלקוח: {session.get_conversation_step_json('2')}"
                 if moses_api.create_kria(data):
                     print(f"Kria successfully created! {data}")
                     # new_issue.set_issue_status(db, True)
@@ -565,7 +578,7 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                 raise Exception("Unknown step after check for end conversation")
         else:
             print("Invalid response try again")
-            if current_conversation_step == "2":
+            if current_conversation_step in ["2", "3"]:
                 session.session_active = False
                 db.commit()
                 print("Your session end")
@@ -745,6 +758,7 @@ def check_if_session_exist(db, user_id):
 
 
 def after_working_hours():
+    global after_working_hours_flag
     # Get Day Number from weekday
     # weekday: Sunday is 6
     #          Monday is 0
@@ -759,6 +773,7 @@ def after_working_hours():
 
     if week_num in [4, 5]:
         # print("Today is a Weekend")
+        after_working_hours_flag = True
         return True
     else:
         pass
@@ -767,11 +782,12 @@ def after_working_hours():
     current_time = datetime.now(pytz.timezone('Israel'))
     if current_time.hour > WORKING_HOURS_START_END[1] or current_time.hour < WORKING_HOURS_START_END[0]:
         # print("Now is NOT working hours")
+        after_working_hours_flag = True
         return True
     else:
         pass
         # print("Now is working hours")
-
+    after_working_hours_flag = False
     return False
 
 
