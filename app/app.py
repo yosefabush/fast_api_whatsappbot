@@ -517,19 +517,19 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                             session.set_call_flow(db, 5)  # skip on step 4
                             next_step_after_increment = str(session.call_flow_location)
                             message = conversation_steps[next_step_after_increment]
-                            return send_interactive_response(message, ["חזור למספר זה"])
+                            return send_interactive_response(message, ["חזרו אלי למספר זה"])
                         return send_interactive_response(conversation_steps[next_step_after_increment],
                                                          products_2)
                     else:
                         print("product return empty")
                         return send_interactive_response(conversation_steps[next_step_after_increment],
-                                                         ["חזור למספר זה"])
+                                                         ["חזרו אלי למספר זה"])
                         # send_response_using_whatsapp_api(conversation_steps[next_step_after_increment])
                         # return conversation_steps[next_step_after_increment]
                     # return "Choose product..."
                 elif current_conversation_step == "4":
                     return send_interactive_response(conversation_steps[next_step_after_increment],
-                                                     ["חזור למספר זה"])
+                                                     ["חזרו אלי למספר זה"])
                 else:
                     send_response_using_whatsapp_api(conversation_steps[next_step_after_increment])
                     return conversation_steps[next_step_after_increment]

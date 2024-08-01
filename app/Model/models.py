@@ -62,7 +62,7 @@ class ConversationSession(Base):
         "2": "אנא הזינו סיסמא",
         "3": "תודה שפנית אלינו פרטיך נקלטו במערכת\nבאיזה נושא נוכל להעניק לך שירות?\n(לפתיחת קריאה ללא נושא רשום 'אחר')",
         "4": "אנא בחרו קוד מוצר",
-        "5": "אם ברצונכם לחזור למספר אחר אנא הקישו כעת את המספר לחזרה",
+        "5": "אם ברצונכם שנחזור למספר פלאפון זה לחץ כאן, אחרת נא הקישו כעת את המספר לחזרה",
         "6": "מה שם פותח הקריאה?",
         "7": "נא רשמו בקצרה את תיאור הפנייה",
         "8": "תודה רבה על פנייתכם!\n הקריאה נכנסה למערכת שלנו  ותטופל בהקדם האפשרי\n"
@@ -213,7 +213,7 @@ class ConversationSession(Base):
                 return found
             elif case == 5:
                 print(f"Check if phone number '{answer}' is valid")
-                if answer != "חזור למספר זה":
+                if answer != "חזרו אלי למספר זה":
                     rule = re.compile(r'(^\+?(972|0)(\-)?0?(([23489]{1}\d{7})|[5]{1}\d{8})$)')
                     if not rule.search(answer):
                         msg = "המספר שהוקש איננו תקין"
@@ -256,7 +256,7 @@ class ConversationSession(Base):
                         break
             elif step == 5:
                 # if response == "1":
-                if response == "חזור למספר זה":
+                if response == "חזרו אלי למספר זה":
                     # user_id is phone number in conversation
                     self.set_conversion_step(step, self.user_id, db)
                 else:
@@ -269,16 +269,16 @@ class ConversationSession(Base):
             return True, result
         else:
             if self.call_flow_location == 1:
-                result = "שם משתמש שגוי אנא נסו שוב"
+                result = "שם משתמש או ססמא שגויים אנא נסו שוב"
             elif self.call_flow_location == 2:
                 result = f"לצערינו לא ניתן להמשיך את הליך ההזדהות 😌\nרוצים לנסות שוב? שלחו הודעה נוספת\n\nאם אין לכם פרטים תוכלו ליצור קשר עם שירות הלקוחות בטלפון או בwhatsapp במספר 02-6430010 ולקבל פרטי גישה עדכניים, שירות הלקוחות זמין בימים א-ה בין השעות {str_working_hours}"
             elif self.call_flow_location in [3, 4]:
                 if self.all_client_products_in_service is None:
-                    result = "אין פריטים!"
+                    result = "אין פריטים"
                 else:
                     result = "אנא בחרו פריטים מהרשימה"
             elif self.call_flow_location == 5:
-                result = "מספר הטלפון שהוקש אינו חוקי, אנא נסו שוב"
+                result = "מספר הטלפון שהוקש אינו תקין, אנא הזינו שוב"
             else:
                 result = f" ערך לא חוקי '{response}' "
             print(f"Not valid response {response} for step {step}")

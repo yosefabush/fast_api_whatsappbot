@@ -76,6 +76,9 @@ def get_sorted_product_by_user_and_password(client_id):
                     distinct_product_values['ראוטרים ואינטרנט'] = distinct_product_values['Routers']
                     del distinct_product_values['Routers']
                     break
+
+            #fix_value_over_max_length(distinct_product_values)
+            #fix_key_over_max_length(distinct_product_values)
             return distinct_product_values
         except Exception as ex:
             print(f"get_sorted_product Exception {ex,root.text}")
@@ -95,9 +98,45 @@ def login_whatsapp(user, password):
         root = ET.fromstring(response.content)
         try:
             data = json.loads(root.text)
-            print(f"LoginWhatsapp data: {data['table']}")
-            return data["table"][0]
+            error = data['table'][0].get('error', '')
+            if len(error) == 0:
+                print(f"LoginWhatsapp data: {data['table']}")
+                return data["table"][0]
+            #else:
+                #error.process_bot_response()
         except Exception as ex:
             print(f"login_whatsapp Exception {ex}")
-            return None
-    return None
+        return None
+
+
+def fix_value_over_max_length(distinct_product_values):
+    for key, item in distinct_product_values.items():
+        for row in item:
+            for insideKey, value in row.items():
+                for index, trimValue in enumerate(value):
+                    if len(trimValue) > 16:
+                        print("Value were changed")
+                        temp_dict = dict()
+                        temp_dict[insideKey] = trimValue[:16]
+                        distinct_product_values[key][index] = temp_dict
+
+
+def fix_key_over_max_length(distinct_product_values):
+    temp_dict = dict()
+    for key, item in distinct_product_values.items():
+        for index, row in enumerate(item):
+            for insideKey, value in row.items():
+                if len(insideKey) > 16:
+                    print("Key were changed")
+                    #distinct_product_values[key][index][insideKey[:16]] = row.pop(insideKey)
+                    temp_dict[insideKey[:16]]=value
+    keys_to_change = list(temp_dict.keys())
+
+    # Update the dictionary keys
+    for old_key in keys_to_change:
+        for key, item in distinct_product_values.items():
+            for index, row in enumerate(item):
+                if old_key in row.keys():
+                    new_key = temp_dict[old_key]
+                    distinct_product_values[new_key] = distinct_product_values.pop(old_key)
+    print(temp_dict)
