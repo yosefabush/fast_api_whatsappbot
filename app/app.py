@@ -483,11 +483,17 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                 message = conversation_steps[str(session.call_flow_location)]
                 return send_interactive_response(message, ["חזור למספר זה"])
             else:
-                # Construct personalized greeting message
-                personalized_greeting = f"שלום '{client_name}'!\nתודה שפנית אלינו, פרטיך נקלטו במערכת\n{conversation_steps['3']}"
+                # Construct personalized greeting message as specified in requirements
+                # Following the format: Hello [ClientName] + Thank you message + Subject selection
+                personalized_greeting = (
+                    f"שלום '{client_name}'!\n"
+                    f"תודה שפנית אלינו, פרטיך נקלטו במערכת\n"
+                    f"באיזה נושא נוכל להעניק לך שירות?\n"
+                    f"(לפתיחת קריאה ללא נושא רשום 'אחר')"
+                )
                 print(f"Sending personalized greeting to phone-verified user: {personalized_greeting}")
                 
-                # Send interactive response with subject selection
+                # Send interactive response with subject selection menu
                 return send_interactive_response(personalized_greeting, subject_groups)
         else:
             # Negative response - continue with existing greeting flow
@@ -847,5 +853,6 @@ if __name__ == "__main__":
                 host="0.0.0.0",
                 port=int(PORT),
                 log_level="info")
+
 
 
