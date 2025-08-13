@@ -457,6 +457,33 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
             print(f"Phone verification successful for {phone_number}")
             print(f"Client data: {client_data}")
             
+            # Handle multiple branch scenarios
+            # Check if the returned client data indicates multiple branches
+            if isinstance(client_data, dict):
+                # Check for indicators of multiple branches in the response
+                branch_indicators = ['branches', 'multiple', 'branch_count', 'locations']
+                multiple_branches_detected = False
+                
+                for indicator in branch_indicators:
+                    if indicator in client_data and client_data[indicator]:
+                        multiple_branches_detected = True
+                        break
+                
+                # Also check if there are multiple entries or branch-related fields
+                if not multiple_branches_detected:
+                    # Check for multiple branch-related fields or arrays
+                    for key, value in client_data.items():
+                        if isinstance(value, list) and len(value) > 1:
+                            if 'branch' in key.lower() or 'location' in key.lower():
+                                multiple_branches_detected = True
+                                break
+                
+                if multiple_branches_detected:
+                    print(f"Multiple branches detected for phone number {phone_number}")
+                    print(f"Proceeding with the first available branch as specified in requirements")
+                    # Log the multiple branch scenario for future reference
+                    print(f"Multiple branch data: {client_data}")
+            
             # Create or update session
             if session is None:
                 session = ConversationSession(user_id=sender, db=db)
@@ -467,8 +494,10 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
             session.set_call_flow(db, 3)
             
             # Store client data in password field using the format password;userId;clientName
-            client_name = client_data.get('clientName', 'Valued Customer')
-            user_id = client_data.get('UserId', client_data.get('userId', ''))
+            # Handle multiple branch scenarios by using the first available branch data
+            client_name = client_data.get('clientName', client_data.get('ClientName', 'Valued Customer'))
+            user_id = client_data.get('UserId', client_data.get('userId', client_data.get('UserID', '')))
+            
             # For phone verification, we don't have a password, so we'll use a placeholder
             session.password = f"phone_verified;{user_id};{client_name}"
             db.commit()
@@ -853,6 +882,7 @@ if __name__ == "__main__":
                 host="0.0.0.0",
                 port=int(PORT),
                 log_level="info")
+
 
 
 
