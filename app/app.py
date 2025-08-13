@@ -554,7 +554,7 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
                         "clientCode": f"{client_id}"}  # client code
                 if len(data["technicianName"]) > 20:
                     print("technicianName is Over 20 character! Set technicianName only phone number without name")
-                    data["technicianName"] = f"{summary['5']}"
+                    data["technicianName"] = f"{_phone_number_with_0}"
                 new_issue = Issues(conversation_id=session.id,
                                    item_id=session.get_conversation_step_json("4"),
                                    issue_data=data["kria"]
@@ -797,3 +797,4 @@ if __name__ == "__main__":
                 host="0.0.0.0",
                 port=int(PORT),
                 log_level="info")
+
