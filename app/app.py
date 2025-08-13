@@ -8,6 +8,7 @@ import requests
 import threading
 from pathlib import Path
 from Model.models import *
+from Model import moses_api
 from datetime import datetime, timedelta
 from json import JSONDecodeError
 from sqlalchemy.orm import Session
@@ -797,3 +798,4 @@ if __name__ == "__main__":
                 host="0.0.0.0",
                 port=int(PORT),
                 log_level="info")
+
