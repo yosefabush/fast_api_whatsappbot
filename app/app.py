@@ -444,24 +444,73 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
     session = check_if_session_exist(db, sender)
     if session is None or session.call_flow_location == 0:
         print(f"Hi {sender} You are new!:")
-        steps_message = ""
-        for key, value in conversation_steps.items():
-            steps_message += f"{value} - {key}\n"
-        print(f"{steps_message}")
-
-        if after_working_hours_flag:
-            send_response_using_whatsapp_api(conversation["Greeting_after_working_hours"])
-        else:
-            send_response_using_whatsapp_api(conversation["Greeting"])
-
-        # Handling session after restart dou to max login attempts
-        if session is None:
-            session = ConversationSession(user_id=sender, db=db)
-            db.add(session)
+        
+        # Try phone number verification first
+        phone_number = sender  # The sender variable contains the phone number
+        print(f"Attempting phone verification for number: {phone_number}")
+        
+        # Call the phone verification function with the existing constants
+        client_data = moses_api.login_whatsapp_by_number(moses_api.PERFIX_USER_ID, moses_api.PERFIX_PASSWORD, phone_number)
+        
+        if client_data is not None:
+            # Positive response - phone verification successful
+            print(f"Phone verification successful for {phone_number}")
+            print(f"Client data: {client_data}")
+            
+            # Create or update session
+            if session is None:
+                session = ConversationSession(user_id=sender, db=db)
+                db.add(session)
+                db.commit()
+            
+            # Set call flow location to 3 (skip username/password steps)
+            session.set_call_flow(db, 3)
+            
+            # Store client data in password field using the format password;userId;clientName
+            client_name = client_data.get('clientName', 'Valued Customer')
+            user_id = client_data.get('UserId', client_data.get('userId', ''))
+            # For phone verification, we don't have a password, so we'll use a placeholder
+            session.password = f"phone_verified;{user_id};{client_name}"
             db.commit()
-        session.increment_call_flow(db)
-        send_response_using_whatsapp_api(conversation_steps[str(session.call_flow_location)])
-        return conversation_steps[str(session.call_flow_location)]
+            
+            # Get client products and save to database
+            subject_groups = session.get_all_client_product_and_save_db_subjects(db)
+            
+            if subject_groups is None:
+                print("No products found for phone-verified user")
+                # If no products, set to step 5 (phone number step)
+                session.set_call_flow(db, 5)
+                message = conversation_steps[str(session.call_flow_location)]
+                return send_interactive_response(message, ["חזור למספר זה"])
+            else:
+                # Construct personalized greeting message
+                personalized_greeting = f"שלום '{client_name}'!\nתודה שפנית אלינו, פרטיך נקלטו במערכת\n{conversation_steps['3']}"
+                print(f"Sending personalized greeting to phone-verified user: {personalized_greeting}")
+                
+                # Send interactive response with subject selection
+                return send_interactive_response(personalized_greeting, subject_groups)
+        else:
+            # Negative response - continue with existing greeting flow
+            print(f"Phone verification failed for {phone_number}, continuing with username/password flow")
+            
+            steps_message = ""
+            for key, value in conversation_steps.items():
+                steps_message += f"{value} - {key}\n"
+            print(f"{steps_message}")
+
+            if after_working_hours_flag:
+                send_response_using_whatsapp_api(conversation["Greeting_after_working_hours"])
+            else:
+                send_response_using_whatsapp_api(conversation["Greeting"])
+
+            # Handling session after restart dou to max login attempts
+            if session is None:
+                session = ConversationSession(user_id=sender, db=db)
+                db.add(session)
+                db.commit()
+            session.increment_call_flow(db)
+            send_response_using_whatsapp_api(conversation_steps[str(session.call_flow_location)])
+            return conversation_steps[str(session.call_flow_location)]
     else:
         if user_msg.lower() in ["יציאה"]:
             session.session_active = False
@@ -798,4 +847,5 @@ if __name__ == "__main__":
                 host="0.0.0.0",
                 port=int(PORT),
                 log_level="info")
+
 
