@@ -109,6 +109,65 @@ def login_whatsapp(user, password):
         return None
 
 
+def login_whatsapp_by_number(id, password, number):
+    print(f"LoginWhatsappByNumber.. id={id}, password={password}, number={number}")
+    url = END_POINT + f"/LoginWhatsappByNumber?id={id}&password={password}&number={number}"
+    print(f"URL: {url}")
+    
+    try:
+        response = requests.get(url, verify=False)
+        if response.ok:
+            root = ET.fromstring(response.content)
+            response_text = root.text
+            print(f"LoginWhatsappByNumber response: {response_text}")
+            
+            # Check for negative response
+            if response_text and "Login failed" in response_text:
+                print("Login failed - negative response")
+                return None
+            
+            # If we get any other response, it's considered positive
+            if response_text:
+                try:
+                    # Try to parse as JSON if it's structured data
+                    data = json.loads(response_text, strict=False)
+                    print(f"LoginWhatsappByNumber parsed data: {data}")
+                    
+                    # Handle both single and multiple branch scenarios
+                    if isinstance(data, dict) and 'table' in data:
+                        table_data = data['table']
+                        if isinstance(table_data, list) and len(table_data) > 0:
+                            if len(table_data) > 1:
+                                print(f"Multiple branches found: {len(table_data)} branches")
+                            # Return the first branch for now
+                            return table_data[0]
+                        elif isinstance(table_data, dict):
+                            return table_data
+                    elif isinstance(data, list) and len(data) > 0:
+                        if len(data) > 1:
+                            print(f"Multiple branches found: {len(data)} branches")
+                        # Return the first branch for now
+                        return data[0]
+                    else:
+                        # Return the data as is if it's not in expected format
+                        return data
+                        
+                except (json.JSONDecodeError, ValueError):
+                    # If it's not JSON, return the raw response as positive
+                    print("Non-JSON response received, treating as positive")
+                    return {"response": response_text}
+            else:
+                print("Empty response received")
+                return None
+        else:
+            print(f"HTTP request failed with status: {response.status_code}")
+            return None
+            
+    except Exception as ex:
+        print(f"login_whatsapp_by_number Exception: {ex}")
+        return None
+
+
 def fix_value_over_max_length(distinct_product_values):
     for key, item in distinct_product_values.items():
         for row in item:
