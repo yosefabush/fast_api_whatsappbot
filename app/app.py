@@ -8,6 +8,7 @@ import requests
 import threading
 from pathlib import Path
 from Model.models import *
+from Model import moses_api
 from datetime import datetime, timedelta
 from json import JSONDecodeError
 from sqlalchemy.orm import Session
@@ -443,24 +444,108 @@ def process_bot_response(db, user_msg: str, button_selected=False) -> str:
     session = check_if_session_exist(db, sender)
     if session is None or session.call_flow_location == 0:
         print(f"Hi {sender} You are new!:")
-        steps_message = ""
-        for key, value in conversation_steps.items():
-            steps_message += f"{value} - {key}\n"
-        print(f"{steps_message}")
-
-        if after_working_hours_flag:
-            send_response_using_whatsapp_api(conversation["Greeting_after_working_hours"])
-        else:
-            send_response_using_whatsapp_api(conversation["Greeting"])
-
-        # Handling session after restart dou to max login attempts
-        if session is None:
-            session = ConversationSession(user_id=sender, db=db)
-            db.add(session)
+        
+        # Try phone number verification first
+        phone_number = sender  # The sender variable contains the phone number
+        print(f"Attempting phone verification for number: {phone_number}")
+        
+        # Call the phone verification function with the existing constants
+        client_data = moses_api.login_whatsapp_by_number(moses_api.PERFIX_USER_ID, moses_api.PERFIX_PASSWORD, phone_number)
+        
+        if client_data is not None:
+            # Positive response - phone verification successful
+            print(f"Phone verification successful for {phone_number}")
+            print(f"Client data: {client_data}")
+            
+            # Handle multiple branch scenarios
+            # Check if the returned client data indicates multiple branches
+            if isinstance(client_data, dict):
+                # Check for indicators of multiple branches in the response
+                branch_indicators = ['branches', 'multiple', 'branch_count', 'locations']
+                multiple_branches_detected = False
+                
+                for indicator in branch_indicators:
+                    if indicator in client_data and client_data[indicator]:
+                        multiple_branches_detected = True
+                        break
+                
+                # Also check if there are multiple entries or branch-related fields
+                if not multiple_branches_detected:
+                    # Check for multiple branch-related fields or arrays
+                    for key, value in client_data.items():
+                        if isinstance(value, list) and len(value) > 1:
+                            if 'branch' in key.lower() or 'location' in key.lower():
+                                multiple_branches_detected = True
+                                break
+                
+                if multiple_branches_detected:
+                    print(f"Multiple branches detected for phone number {phone_number}")
+                    print(f"Proceeding with the first available branch as specified in requirements")
+                    # Log the multiple branch scenario for future reference
+                    print(f"Multiple branch data: {client_data}")
+            
+            # Create or update session
+            if session is None:
+                session = ConversationSession(user_id=sender, db=db)
+                db.add(session)
+                db.commit()
+            
+            # Set call flow location to 3 (skip username/password steps)
+            session.set_call_flow(db, 3)
+            
+            # Store client data in password field using the format password;userId;clientName
+            # Handle multiple branch scenarios by using the first available branch data
+            client_name = client_data.get('clientName', client_data.get('ClientName', 'Valued Customer'))
+            user_id = client_data.get('UserId', client_data.get('userId', client_data.get('UserID', '')))
+            
+            # For phone verification, we don't have a password, so we'll use a placeholder
+            session.password = f"phone_verified;{user_id};{client_name}"
             db.commit()
-        session.increment_call_flow(db)
-        send_response_using_whatsapp_api(conversation_steps[str(session.call_flow_location)])
-        return conversation_steps[str(session.call_flow_location)]
+            
+            # Get client products and save to database
+            subject_groups = session.get_all_client_product_and_save_db_subjects(db)
+            
+            if subject_groups is None:
+                print("No products found for phone-verified user")
+                # If no products, set to step 5 (phone number step)
+                session.set_call_flow(db, 5)
+                message = conversation_steps[str(session.call_flow_location)]
+                return send_interactive_response(message, ["חזור למספר זה"])
+            else:
+                # Construct personalized greeting message as specified in requirements
+                # Following the format: Hello [ClientName] + Thank you message + Subject selection
+                personalized_greeting = (
+                    f"שלום '{client_name}'!\n"
+                    f"תודה שפנית אלינו, פרטיך נקלטו במערכת\n"
+                    f"באיזה נושא נוכל להעניק לך שירות?\n"
+                    f"(לפתיחת קריאה ללא נושא רשום 'אחר')"
+                )
+                print(f"Sending personalized greeting to phone-verified user: {personalized_greeting}")
+                
+                # Send interactive response with subject selection menu
+                return send_interactive_response(personalized_greeting, subject_groups)
+        else:
+            # Negative response - continue with existing greeting flow
+            print(f"Phone verification failed for {phone_number}, continuing with username/password flow")
+            
+            steps_message = ""
+            for key, value in conversation_steps.items():
+                steps_message += f"{value} - {key}\n"
+            print(f"{steps_message}")
+
+            if after_working_hours_flag:
+                send_response_using_whatsapp_api(conversation["Greeting_after_working_hours"])
+            else:
+                send_response_using_whatsapp_api(conversation["Greeting"])
+
+            # Handling session after restart dou to max login attempts
+            if session is None:
+                session = ConversationSession(user_id=sender, db=db)
+                db.add(session)
+                db.commit()
+            session.increment_call_flow(db)
+            send_response_using_whatsapp_api(conversation_steps[str(session.call_flow_location)])
+            return conversation_steps[str(session.call_flow_location)]
     else:
         if user_msg.lower() in ["יציאה"]:
             session.session_active = False
@@ -797,3 +882,7 @@ if __name__ == "__main__":
                 host="0.0.0.0",
                 port=int(PORT),
                 log_level="info")
+
+
+
+
